@@ -83,17 +83,18 @@ The trading floor has 12 agents across two phases:
 
 ## Agent Cast
 
-| <img width="220"/> Regime Analyst | Risk Governor | Exec Coordinator | Strategy |
+| <sub>Regime Analyst</sub> | <sub>Risk Governor</sub> | <sub>Exec Coordinator</sub> | <sub>Strategy</sub> |
 |:---:|:---:|:---:|:---:|
 | ![](sprites/characters/regime_stand_south.gif) | ![](sprites/characters/risk_stand_south.gif) | ![](sprites/characters/exec_stand_south.gif) | ![](sprites/characters/strat_stand_south.gif) |
 
-| Performance | Session | Correlation | Drawdown |
+| <sub>Performance</sub> | <sub>Session</sub> | <sub>Correlation</sub> | <sub>Drawdown</sub> |
 |:---:|:---:|:---:|:---:|
 | ![](sprites/characters/perf_stand_south.gif) | ![](sprites/characters/sess_stand_south.gif) | ![](sprites/characters/corr_stand_south.gif) | ![](sprites/characters/dd_stand_south.gif) |
 
-| News Watch | Journalist | Bktest Scout | Meta-Super |
+| <sub>News Watch</sub> | <sub>Journalist</sub> | <sub>Bktest Scout</sub> | <sub>Meta-Super</sub> |
 |:---:|:---:|:---:|:---:|
 | ![](sprites/characters/news_stand_south.gif) | ![](sprites/characters/journ_stand_south.gif) | ![](sprites/characters/scout_stand_south.gif) | ![](sprites/characters/meta_stand_south.gif) |
+
 ---
 
 ## API Endpoints
