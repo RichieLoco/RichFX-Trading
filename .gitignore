@@ -28,3 +28,6 @@ logs/
 Thumbs.db
 core/*.bak*
 core/#*#
+
+# Include stand_south sprites for README showcase
+!sprites/characters/*_stand_south.gif
