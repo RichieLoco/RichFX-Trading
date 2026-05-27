@@ -1,0 +1,19 @@
+<service>
+  <id>RichFX-Alerter</id>
+  <name>RichFX Alerter</name>
+  <description>Telegram alerter — monitors state files and sends alerts</description>
+  <executable>C:\Users\richi-rdp\AppData\Local\Programs\Python\Python312\python.exe</executable>
+  <arguments>C:\__RichStuff\FX\trading_system\core\telegram_alerter.py</arguments>
+  <env name="PYTHONIOENCODING" value="utf-8"/>
+  <logpath>C:\Services\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+  <onfailure action="restart" delay="10 sec"/>
+  <serviceaccount>
+    <username>.\richi-rdp</username>
+    <password>YOUR_WINDOWS_PASSWORD</password>
+    <allowservicelogon>true</allowservicelogon>
+  </serviceaccount>
+</service>

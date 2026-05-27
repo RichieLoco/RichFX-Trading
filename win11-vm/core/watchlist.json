@@ -1,0 +1,27 @@
+{
+  "pairs": [
+    {
+      "symbol":    "EURUSD",
+      "timeframe": "H4",
+      "magic":     100401,
+      "active":    true,
+      "lot_base":  0.01,
+      "comment":   "Main pair - Jim's DCA strategy"
+    },
+    {
+      "symbol":    "AUDUSD",
+      "timeframe": "H4",
+      "magic":     100402,
+      "active":    true,
+      "lot_base":  0.01,
+      "comment":   "Second pair"
+    }
+  ],
+  "settings": {
+    "max_sequence_trades":    6,
+    "max_spread_points":      30,
+    "max_equity_dd_pct":      5.0,
+    "friday_close_warn_hour": 22,
+    "poll_interval_secs":     60
+  }
+}

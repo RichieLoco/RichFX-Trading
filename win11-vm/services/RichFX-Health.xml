@@ -1,0 +1,14 @@
+<service>
+  <id>RichFX-Health</id>
+  <name>RichFX Health</name>
+  <description>Lightweight HTTP health endpoint for preflight check</description>
+  <executable>C:\Users\richi-rdp\AppData\Local\Programs\Python\Python312\python.exe</executable>
+  <arguments>C:\__RichStuff\FX\trading_system\core\vm_health.py</arguments>
+  <logpath>C:\Services\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+  <env name="PYTHONIOENCODING" value="utf-8"/>
+  <onfailure action="restart" delay="10 sec"/>
+</service>
