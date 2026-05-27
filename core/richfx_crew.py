@@ -2,9 +2,12 @@
 import json, time, re, argparse, subprocess, requests
 from datetime import datetime, timezone
 from crewai import Agent, Task, Crew, Process, LLM
+import os
+from dotenv import load_dotenv
 
-TELEGRAM_TOKEN   = "8426876222:AAHm1z2OD8qFPBEkX71XNj1csjQtWTTzPe0"
-TELEGRAM_CHAT_ID = "1645198391"
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+TELEGRAM_TOKEN   = os.getenv("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 VM_HOST    = "100.80.62.2"
 VM_USER    = "richi-rdp"
 STATE_FILE = "C:/__RichStuff/FX/trading_system/data/signals/state.json"
