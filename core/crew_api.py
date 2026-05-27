@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-BASE_DIR    = "/home/richi/trading_system"
+BASE_DIR = os.getenv("BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SPRITES_DIR = os.path.join(BASE_DIR, "sprites")
 CONFIG_PATH = os.path.join(BASE_DIR, "config", "symbols.json")
 

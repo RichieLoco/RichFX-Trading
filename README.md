@@ -202,7 +202,7 @@ TELEGRAM_CHAT_ID=your_chat_id
 
 **Access:**
 - Local: `http://localhost:8000`
-- Tailscale: `http://100.127.251.110:8000`
+- Tailscale: `http://<ubuntu-ai-tailscale-ip>:8000`
 - Public: `https://crew.richielo.co` *(Cloudflare Access — email OTP)*
 
 **Features:**
