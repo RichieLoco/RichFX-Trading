@@ -77,6 +77,26 @@ The trading floor has 12 agents across two phases:
 
 ---
 
+## The Trading Floor
+
+![RichFX Trading Floor Demo](trading_floor_demo.gif)
+
+## Agent Cast
+
+| Regime Analyst | Risk Governor | Exec Coordinator | Strategy |
+|:---:|:---:|:---:|:---:|
+| ![](sprites/characters/regime_stand_south.gif) | ![](sprites/characters/risk_stand_south.gif) | ![](sprites/characters/exec_stand_south.gif) | ![](sprites/characters/strat_stand_south.gif) |
+
+| Performance | Session | Correlation | Drawdown |
+|:---:|:---:|:---:|:---:|
+| ![](sprites/characters/perf_stand_south.gif) | ![](sprites/characters/sess_stand_south.gif) | ![](sprites/characters/corr_stand_south.gif) | ![](sprites/characters/dd_stand_south.gif) |
+
+| News Watch | Journalist | Bktest Scout | Meta-Super |
+|:---:|:---:|:---:|:---:|
+| ![](sprites/characters/news_stand_south.gif) | ![](sprites/characters/journ_stand_south.gif) | ![](sprites/characters/scout_stand_south.gif) | ![](sprites/characters/meta_stand_south.gif) |
+
+---
+
 ## API Endpoints
 
 All served by FastAPI on port 8000.

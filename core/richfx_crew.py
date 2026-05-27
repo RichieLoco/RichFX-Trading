@@ -8,10 +8,12 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 TELEGRAM_TOKEN   = os.getenv("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-VM_HOST    = "100.80.62.2"
-VM_USER    = "richi-rdp"
-STATE_FILE = "C:/__RichStuff/FX/trading_system/data/signals/state.json"
-OLLAMA_URL = "http://localhost:11434"
+VM_HOST          = os.getenv("VM_HOST", "100.80.62.2")
+VM_USER          = os.getenv("VM_USER", "richi-rdp")
+VM_BASE_PATH     = os.getenv("VM_BASE_PATH", "C:/__RichStuff/FX")
+STATE_FILE       = f"{VM_BASE_PATH}/trading_system/data/signals/state.json"
+OLLAMA_URL       = "http://localhost:11434"
+POLL_INTERVAL    = 30
 POLL_INTERVAL = 30
 
 llm_regime   = LLM(model="ollama/qwen3-14b-8k",       base_url=OLLAMA_URL, temperature=0.1)
