@@ -83,7 +83,7 @@ The trading floor has 12 agents across two phases:
 
 ## Agent Cast
 
-| Regime Analyst | Risk Governor | Exec Coordinator | Strategy |
+| <img width="220"/> Regime Analyst | Risk Governor | Exec Coordinator | Strategy |
 |:---:|:---:|:---:|:---:|
 | ![](sprites/characters/regime_stand_south.gif) | ![](sprites/characters/risk_stand_south.gif) | ![](sprites/characters/exec_stand_south.gif) | ![](sprites/characters/strat_stand_south.gif) |
 
@@ -94,7 +94,6 @@ The trading floor has 12 agents across two phases:
 | News Watch | Journalist | Bktest Scout | Meta-Super |
 |:---:|:---:|:---:|:---:|
 | ![](sprites/characters/news_stand_south.gif) | ![](sprites/characters/journ_stand_south.gif) | ![](sprites/characters/scout_stand_south.gif) | ![](sprites/characters/meta_stand_south.gif) |
-
 ---
 
 ## API Endpoints
