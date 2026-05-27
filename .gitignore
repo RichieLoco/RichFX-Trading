@@ -1,0 +1,30 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Secrets
+.env
+*.env
+
+# Data files — never commit signal data or DB
+data/
+
+# Sprites — large binary files, exclude or use Git LFS
+sprites/characters/*.gif
+sprites/furniture/*.png
+
+# Backup files
+*.bak
+sprites_bak/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+core/*.bak*
+core/#*#

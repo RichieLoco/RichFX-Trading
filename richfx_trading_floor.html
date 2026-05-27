@@ -1,0 +1,1123 @@
+
+<style>
+/* ─── Alternative gesture zoom overlay ─────────────────────────────────────────── */
+#altOverlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  overflow: hidden;
+}
+#altOverlay.visible {
+  display: block;
+}
+#altSprite {
+  width: auto;
+  height: 200%;
+  image-rendering: pixelated;
+  position: absolute;
+  bottom: -75%;
+  left: 50%;
+  transform: translateX(-50%) translateY(100%);
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#altOverlay.visible #altSprite {
+  transform: translateX(-50%) translateY(0%);
+}
+.trading-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1280 / 400;
+  background: #c8ccd4;
+  overflow: hidden;
+}
+#tradingFloor {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  cursor: pointer;
+}
+#agentLayer {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+.agent-wrapper {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.agent-name {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10,8,5,0.72);
+  color: #c8c0b0;
+  font: bold 10px 'Courier New', monospace;
+  padding: 2px 8px;
+  white-space: nowrap;
+  margin-bottom: 3px;
+  pointer-events: none;
+}
+.agent-sprite {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
+}
+#agentOverlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(250,250,252,.97);
+  padding: 18px 22px;
+  flex-direction: column;
+  font-family: 'Courier New', monospace;
+  z-index: 100;
+}
+#agentOverlay.visible { display: flex; }
+.overlay-header  { display: flex; justify-content: space-between; margin-bottom: 10px; }
+.overlay-title   { color: #1a2880; font-size: 15px; margin-bottom: 3px; }
+.overlay-sub     { color: #6070a0; font-size: 10px; }
+.overlay-divider { height: 1px; background: #d0c8b8; margin: 8px 0 12px; }
+.overlay-body    { flex: 1; overflow-y: auto; font-size: 11px; line-height: 1.8; color: #1a1840; }
+.close-btn {
+  background: none; border: 1px solid #8090c0; color: #6070a0;
+  padding: 4px 14px; border-radius: 2px; cursor: pointer;
+  font-family: 'Courier New', monospace; font-size: 11px;
+}
+.close-btn:hover { border-color: #1a2880; color: #1a2880; }
+</style>
+
+<div class="trading-wrapper">
+  <canvas id="tradingFloor" width="1280" height="400"></canvas>
+  <div id="agentLayer"></div>
+  <div id="agentOverlay">
+    <div class="overlay-header">
+      <div>
+        <div class="overlay-title" id="overlayTitle"></div>
+        <div class="overlay-sub"   id="overlaySubtitle"></div>
+      </div>
+      <button class="close-btn" onclick="closeAgentOverlay()">CLOSE</button>
+    </div>
+    <div class="overlay-divider"></div>
+    <div class="overlay-body" id="overlayBody"></div>
+  </div>
+  <div id="altOverlay">
+    <img id="altSprite" src="" alt="">
+</div>
+</div>
+
+<script>
+const canvas = document.getElementById('tradingFloor');
+const ctx    = canvas.getContext('2d');
+
+const CANVAS_WIDTH  = 1280;
+const CANVAS_HEIGHT = 400;
+const WALL_HEIGHT   = 162;
+const SLOT_WIDTH    = CANVAS_WIDTH / 11;
+const AGENT_Y       = 258;
+const SPRITE_SIZE   = 130;
+
+const SPRITE_W_PCT  = (SPRITE_SIZE / CANVAS_WIDTH)  * 100;
+const SPRITE_H_PCT  = (SPRITE_SIZE / CANVAS_HEIGHT) * 100;
+
+const TV_LEFT        = 150;
+const TV_WIDTH       = 448;
+const TV_BEZEL_LEFT  = TV_LEFT - 8;
+const TV_BEZEL_RIGHT = TV_LEFT + TV_WIDTH + 8;
+const WHITEBOARD_X          = 800;
+const WHITEBOARD_WIDTH      = 140;
+const WHITEBOARD_FRAME_LEFT = WHITEBOARD_X - 4;
+const CLOCK_CENTER_X = Math.round(TV_BEZEL_LEFT / 2);
+const WINDOW_X       = Math.round((TV_BEZEL_RIGHT + WHITEBOARD_FRAME_LEFT) / 2) - 69;
+const WINDOW_WIDTH   = 138;
+const WINDOW_HEIGHT  = 96;
+
+const API_BASE 		= window.location.origin;
+const CHARACTER_URL = `${API_BASE}/sprites/characters/`;
+const FURNITURE_URL = `${API_BASE}/sprites/furniture/`;
+
+// ─── Symbol registry — populated from /symbols on load ───────────────────────
+// activePairs is an array of { symbol, timeframe, magic, account, active, label }
+let activePairs  = [];
+let tvPairIndex  = 0;
+
+// ─── Market data — keyed by symbol ───────────────────────────────────────────
+// marketData.pairs['EURUSD'] = { barTime, qqe, trend, action, spread, ... }
+const marketData = {
+  pairs:     {},
+  preflight: { ollama: null, crewApi: null, mt5Vm: null },
+  lastUpdate: null,
+  is_demo:   true,
+};
+
+function makePairData(pairCfg) {
+  return {
+    barTime:    '--',
+    qqe:        '--',
+    trend:      '--',
+    action:     '--',
+    spread:     '--',
+    seqPnl:     null,
+    seqLots:    0,
+    seqDir:     null,
+    inRecovery: false,
+    posCount:   0,
+    equity:     null,
+    openPnl:    null,
+    closedPnl:  null,
+    margin:     null,
+    // preserve config fields so other functions can read them
+    timeframe:  pairCfg.timeframe,
+    magic:      pairCfg.magic,
+    account:    pairCfg.account,
+    label:      pairCfg.label || pairCfg.symbol,
+  };
+}
+
+// ─── Fetch symbol list from API ───────────────────────────────────────────────
+async function fetchSymbols() {
+  try {
+    const res = await fetch(`${API_BASE}/symbols`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    activePairs = data.symbols.filter(s => s.active !== false);
+  } catch(e) {
+    console.warn('fetchSymbols failed, using fallback:', e.message);
+    // Hard fallback so the dashboard still works if the API is briefly down
+    activePairs = [
+      { symbol:'EURUSD', timeframe:'H4', magic:100401, account:'demo', active:true, label:'Euro / US Dollar' },
+      { symbol:'AUDUSD', timeframe:'H4', magic:100402, account:'demo', active:true, label:'Australian Dollar / US Dollar' },
+    ];
+  }
+  // Initialise marketData slots for every pair
+  activePairs.forEach(p => {
+    marketData.pairs[p.symbol] = makePairData(p);
+  });
+}
+
+// ─── Furniture ────────────────────────────────────────────────────────────────
+const FURNITURE = {
+  plant:              { x: -10,  y: WALL_HEIGHT - 48, w: 60,  h: 60  },
+  fire_extinguisher:  { x: 90,   y: WALL_HEIGHT - 48, w: 60,  h: 60  },
+  water_machine:      { x: 1200, y: WALL_HEIGHT - 58, w: 90,  h: 90  },
+  coffee_machine:     { x: 1135, y: WALL_HEIGHT - 70, w: 100, h: 100 },
+  coat_stand:         { x: 1020, y: WALL_HEIGHT - 85, w: 100, h: 100 },
+  partition1:         { x: 100,  y: 175,              w: 90,  h: 90  },
+  partition2:         { x: 350,  y: 175,              w: 90,  h: 90  },
+  partition3:         { x: 800,  y: 175,              w: 90,  h: 90  },
+  partition4:         { x: 1050, y: 175,              w: 90,  h: 90  },
+  bins:               { x: 960,  y: WALL_HEIGHT - 60, w: 75,  h: 75  },
+  desk:               { x: 546,  y: 139,              w: 145, h: 145 },
+  desk2:              { x: 546,  y: 224,              w: 145, h: 145 },
+};
+
+const furnitureSprites = {};
+['coffee_machine','water_machine','chairs','coat_stand','fire_extinguisher',
+ 'plant','filing_cabinet','partition1','partition2','partition3','partition4',
+ 'desk','bins'].forEach(name => {
+  const img = new Image(); img.src = `${FURNITURE_URL}${name}.png`;
+  furnitureSprites[name] = img;
+});
+furnitureSprites['desk2'] = furnitureSprites['desk'];
+
+// ─── Agents ───────────────────────────────────────────────────────────────────
+const AGENTS = [
+  { key:'regime', label:'REGIME ANALYST', phase:1, sprite:'regime' },
+  { key:'risk',   label:'RISK GOVERNOR',  phase:1, sprite:'risk'   },
+  { key:'exec',   label:'EXEC COORD.',    phase:1, sprite:'exec'   },
+  { key:'strat',  label:'STRATEGY',       phase:2, sprite:'strat'  },
+  { key:'perf',   label:'PERFORMANCE',    phase:2, sprite:'perf'   },
+  { key:'sess',   label:'SESSION',        phase:2, sprite:'sess'   },
+  { key:'corr',   label:'CORRELATION',    phase:2, sprite:'corr'   },
+  { key:'dd',     label:'DRAWDOWN',       phase:2, sprite:'dd'     },
+  { key:'news',   label:'NEWS WATCH',     phase:2, sprite:'news'   },
+  { key:'journ',  label:'JOURNALIST',     phase:2, sprite:'journ'  },
+  { key:'scout',  label:'BKTEST SCOUT',   phase:2, sprite:'scout'  },
+  { key:'meta',   label:'META-SUPER',     phase:2, sprite:'meta'   },
+];
+
+const agentState = {};
+AGENTS.forEach(a => {
+  agentState[a.key] = { status: a.phase === 2 ? 'dormant' : 'idle', summary:'', rawOutput:'' };
+});
+
+function getStoppedSpriteFile(spriteName, status) {
+  return {
+    approved: `${spriteName}_cheer`,
+    rejected: `${spriteName}_cry`,
+    action:   `${spriteName}_point`,
+    anxious:  `${spriteName}_anxious`,
+  }[status] || `${spriteName}_stand_south`;
+}
+
+const agentImgs = {}, agentNameTags = {};
+
+function applyAgentVisuals(key) {
+  const img     = agentImgs[key];
+  const nameTag = agentNameTags[key];
+  const state   = agentState[key].status;
+
+  img.style.opacity = '1';
+
+  if (state === 'dormant') {
+    // Truly dormant — greyscale, no data yet
+    img.style.filter    = 'grayscale(1) brightness(0.65)';
+    nameTag.style.color = '#909090';
+  } else if (state === 'idle') {
+    // Idle but active — slight mute
+    img.style.filter    = 'grayscale(0.4) brightness(0.92)';
+    nameTag.style.color = '#c8c0b0';
+  } else {
+    // Active state — full colour
+    img.style.filter    = 'none';
+    nameTag.style.color = '#f0e8d8';
+  }
+}
+
+// ─── Agent positions + DOM elements ──────────────────────────────────────────
+const agentPos      = {};
+const agentWrappers = {};
+
+AGENTS.forEach((agent, i) => {
+  agentPos[agent.key] = {
+    x:           Math.max(0, Math.min(CANVAS_WIDTH - SPRITE_SIZE,
+                   Math.floor(SLOT_WIDTH * i + SLOT_WIDTH / 2) - SPRITE_SIZE / 2)),
+    y:           AGENT_Y,
+    vx:          0, vy: 0,
+    moveDir:     'south',
+    isWandering: false,
+    wanderTimer: Date.now() + i * 200 + Math.random() * 800,
+  };
+});
+
+const agentLayer = document.getElementById('agentLayer');
+AGENTS.forEach((agent, i) => {
+  const pos     = agentPos[agent.key];
+  const wrapper = document.createElement('div');
+  wrapper.className = 'agent-wrapper';
+  wrapper.style.cssText = `left:${(pos.x/CANVAS_WIDTH)*100}%;top:${(pos.y/CANVAS_HEIGHT)*100}%;width:${SPRITE_W_PCT}%;height:${SPRITE_H_PCT}%;`;
+  wrapper.addEventListener('click', () => openAgentOverlay(i));
+
+  const nameTag = document.createElement('div');
+  nameTag.className   = 'agent-name';
+  nameTag.textContent = agent.label;
+
+  const img = document.createElement('img');
+  img.className = 'agent-sprite';
+  img.src       = `${CHARACTER_URL}${agent.sprite}_stand_south.gif`;
+
+  wrapper.appendChild(nameTag);
+  wrapper.appendChild(img);
+  agentLayer.appendChild(wrapper);
+
+  agentWrappers[agent.key] = wrapper;
+  agentImgs[agent.key]     = img;
+  agentNameTags[agent.key] = nameTag;
+});
+AGENTS.forEach(a => applyAgentVisuals(a.key));
+
+// ─── Weather + misc state ─────────────────────────────────────────────────────
+let currentWeather = 'sun', weatherChangeTime = 0;
+const raindrops = Array.from({length:28}, () => ({
+  x: Math.random(), y: Math.random(), speed: 2 + Math.random() * 2,
+}));
+
+function isMarketOpen() {
+  const d=new Date(), day=d.getUTCDay(), h=d.getUTCHours();
+  return !(day===6 || (day===5 && h>=23) || (day===0 && h<22));
+}
+
+// ─── Render loop ──────────────────────────────────────────────────────────────
+function renderLoop(ts) {
+  if (ts - weatherChangeTime > 180000) {
+    currentWeather    = ['sun','cloud','rain'][Math.floor(Math.random()*3)];
+    weatherChangeTime = ts;
+  }
+  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  drawRoom(); drawWhiteboard(); drawFurniture();
+  drawClock(); drawTVScreen(); drawWindow();
+  drawNightOverlay();
+  requestAnimationFrame(renderLoop);
+}
+requestAnimationFrame(renderLoop);
+
+// ─── Draw functions ───────────────────────────────────────────────────────────
+function drawNightOverlay() {
+  const h = new Date().getUTCHours();
+  let alpha = 0;
+  if      (h >= 20 || h < 5)  alpha = 0.65;
+  else if (h >= 5  && h < 7)  alpha = 0.35;
+  else if (h >= 17 && h < 20) alpha = 0.10;
+  if (alpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#0a0820';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.restore();
+  }
+}
+
+function drawRoom() {
+  ctx.fillStyle='#fafafa'; ctx.fillRect(0,0,CANVAS_WIDTH,WALL_HEIGHT);
+  ctx.fillStyle='#f2f2f2'; ctx.fillRect(0,0,CANVAS_WIDTH,18);
+  ctx.fillStyle='#1a1828'; ctx.font='bold 16px Courier New';
+  ctx.fillText('RICHFX  TRADING  FLOOR',20,13);
+  ctx.fillStyle='#e0e0e0'; ctx.fillRect(0,17,CANVAS_WIDTH,1);
+  ctx.fillStyle='#e4e4e4'; ctx.fillRect(0,WALL_HEIGHT-3,CANVAS_WIDTH,3);
+  ctx.fillStyle='#666'; ctx.fillRect(0,WALL_HEIGHT,CANVAS_WIDTH,4);
+  ctx.fillStyle='#c8ccd4'; ctx.fillRect(0,WALL_HEIGHT+4,CANVAS_WIDTH,CANVAS_HEIGHT-WALL_HEIGHT-4);
+  ctx.strokeStyle='rgba(0,0,0,0.07)'; ctx.lineWidth=1;
+  for(let x=0;x<=CANVAS_WIDTH;x+=32){ctx.beginPath();ctx.moveTo(x,WALL_HEIGHT+4);ctx.lineTo(x,CANVAS_HEIGHT);ctx.stroke();}
+  for(let y=WALL_HEIGHT+4;y<=CANVAS_HEIGHT;y+=32){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(CANVAS_WIDTH,y);ctx.stroke();}
+}
+
+function drawClock() {
+  ctx.save();
+  const now=new Date(), h=now.getUTCHours(), m=now.getUTCMinutes(), s=now.getUTCSeconds();
+  const cx=CLOCK_CENTER_X, cy=82, r=44;
+  ctx.fillStyle='#111'; ctx.beginPath(); ctx.arc(cx,cy,r+6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#282828'; ctx.beginPath(); ctx.arc(cx,cy,r+3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#f8f4ec'; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#222';
+  for(let i=0;i<12;i++){
+    const a=i/12*Math.PI*2-Math.PI/2;
+    ctx.beginPath(); ctx.arc(cx+Math.cos(a)*(r-6),cy+Math.sin(a)*(r-6),i%3===0?3:1.5,0,Math.PI*2); ctx.fill();
+  }
+  ctx.lineCap='round';
+  const ha=((h%12)+m/60)/12*Math.PI*2-Math.PI/2;
+  ctx.strokeStyle='#111'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(ha)*(r-16),cy+Math.sin(ha)*(r-16)); ctx.stroke();
+  const ma=(m+s/60)/60*Math.PI*2-Math.PI/2;
+  ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(ma)*(r-8),cy+Math.sin(ma)*(r-8)); ctx.stroke();
+  const sa=s/60*Math.PI*2-Math.PI/2;
+  ctx.strokeStyle='#cc0000'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(sa)*(r-5),cy+Math.sin(sa)*(r-5)); ctx.stroke();
+  ctx.fillStyle='#111'; ctx.beginPath(); ctx.arc(cx,cy,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#555'; ctx.font='bold 12px Courier New'; ctx.textAlign='center';
+  ctx.fillText('UTC',cx,cy+r+18); ctx.textAlign='left'; ctx.restore();
+}
+
+function getH4Countdown() {
+  const now  = new Date();
+  const secs = now.getUTCHours()*3600 + now.getUTCMinutes()*60 + now.getUTCSeconds();
+  const rem  = (4*3600) - (secs % (4*3600));
+  const h=Math.floor(rem/3600), m=Math.floor((rem%3600)/60), s=rem%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function drawTVScreen() {
+  const left=TV_LEFT, top=28, width=TV_WIDTH, height=118;
+
+  // Bezel + screen background
+  ctx.fillStyle='#080808'; ctx.fillRect(left-8,top-8,width+16,height+16);
+  ctx.fillStyle='#060810'; ctx.fillRect(left,top,width,height);
+
+  // ── If symbols not loaded yet, show loading state ────────────────────────
+  if (activePairs.length === 0) {
+    ctx.fillStyle='#0a1228'; ctx.fillRect(left,top,width,height);
+    ctx.fillStyle='#6688aa'; ctx.font='bold 12px Courier New'; ctx.textAlign='center';
+    ctx.fillText('Loading symbols...', left+width/2, top+height/2);
+    ctx.textAlign='left';
+    return;
+  }
+
+  // ── Current pair ─────────────────────────────────────────────────────────
+  const currentPair = activePairs[tvPairIndex];
+  const pd          = marketData.pairs[currentPair.symbol] || {};
+  const isDemo      = currentPair.account === 'demo';
+
+  // Header bar
+  ctx.fillStyle='#0a1228'; ctx.fillRect(left,top,width,20);
+
+  // Pair name — amber badge for live accounts
+  ctx.fillStyle = isDemo ? '#ffffff' : '#ffcc44';
+  ctx.font='bold 13px Courier New'; ctx.textAlign='left';
+  ctx.fillText(
+    `${currentPair.symbol} ${currentPair.timeframe}${isDemo ? '' : ' [L]'}`,
+    left+10, top+14
+  );
+
+  // Bar time + countdown — right-aligned, stacked
+  ctx.fillStyle='#8ab4cc'; ctx.font='9px Courier New'; ctx.textAlign='right';
+  ctx.fillText('bar: ' + (pd.barTime || '--'), left+width-6, top+9);
+  ctx.fillStyle='#ffaa44';
+  ctx.fillText('close: ' + getH4Countdown(), left+width-6, top+18);
+  ctx.textAlign='left';
+
+  ctx.fillStyle='#1a2848'; ctx.fillRect(left,top+20,width,1);
+
+// ── Row 1: signal data ────────────────────────────────────────────────────
+  const cw = width / 4;
+  const ac = pd.action || '--';
+  const actionDisplay = ac
+    .replace('NO ACTION','NO ACT').replace('OPEN_SELL','SELL')
+    .replace('OPEN_BUY','BUY').replace('OPEN SELL','SELL').replace('OPEN BUY','BUY')
+    .slice(0, 8);
+
+  const seqPnlStr   = pd.seqPnl === null ? 'FLAT'
+                    : (pd.seqPnl >= 0 ? '+$' : '-$') + Math.abs(pd.seqPnl).toFixed(2);
+  const seqPnlColor = pd.seqPnl === null ? '#6688aa'
+                    : pd.seqPnl >= 0     ? '#00ee77' : '#ff4444';
+  const statusStr   = pd.inRecovery  ? 'RECOV'
+                    : pd.posCount > 0 ? `${pd.posCount} POS` : 'FLAT';
+  const statusColor = pd.inRecovery  ? '#ff8844'
+                    : pd.posCount > 0 ? '#aaddff' : '#6688aa';
+
+  const row1 = [
+    { l:'QQE',     v: pd.qqe || '--', c: '#e8f4ff'   },
+    { l:'SEQ P&L', v: seqPnlStr,      c: seqPnlColor },
+    { l:'STATUS',  v: statusStr,      c: statusColor },
+    { l:'ACTION',  v: actionDisplay,  c: ac.includes('NO')||ac==='--' ? '#6688aa' : '#dd88ff' },
+  ];
+
+  const ROW1_TOP = top + 21;
+  const ROW1_H   = 52;
+
+  row1.forEach(({ l, v, c }, i) => {
+    const cx = left + i * cw;
+    if (i > 0) { ctx.fillStyle='#1a2848'; ctx.fillRect(cx, ROW1_TOP, 1, ROW1_H); }
+    ctx.fillStyle='#aaddff'; ctx.font='bold 9px Courier New';
+    ctx.textAlign='left'; ctx.fillText(l, cx+6, ROW1_TOP+12);
+    ctx.fillStyle = c;
+    ctx.font      = v.length > 7 ? 'bold 12px Courier New' : 'bold 18px Courier New';
+    ctx.fillText(v, cx+6, v.length > 7 ? ROW1_TOP+34 : ROW1_TOP+38);
+  });
+
+  // ── Divider between rows ──────────────────────────────────────────────────
+  const ROW2_TOP = ROW1_TOP + ROW1_H;
+  ctx.fillStyle='#1a2848'; ctx.fillRect(left, ROW2_TOP, width, 1);
+
+  // ── Row 2: account data ───────────────────────────────────────────────────
+  const equityStr     = pd.equity    !== null ? '$' + pd.equity.toFixed(2)  : '--';
+  const pnlStr        = pd.openPnl   !== null
+                      ? (pd.openPnl >= 0 ? '+$' : '-$') + Math.abs(pd.openPnl).toFixed(2)
+                      : '--';
+  const pnlColor      = pd.openPnl   === null ? '#6688aa'
+                      : pd.openPnl   >= 0     ? '#00ee77' : '#ff4444';
+  const closedStr     = pd.closedPnl !== null
+                      ? (pd.closedPnl >= 0 ? '+$' : '-$') + Math.abs(pd.closedPnl).toFixed(2)
+                      : '--';
+  const closedColor   = pd.closedPnl === null ? '#6688aa'
+                      : pd.closedPnl >= 0     ? '#00ee77' : '#ff4444';
+  const marginStr     = pd.margin    !== null ? '$' + pd.margin.toFixed(2)  : '--';
+
+  const ROW2_H  = height - ROW1_H - 21 - 16; // leave 16px for nav dots
+  const cw2     = width / 4;
+
+  const row2 = [
+    { l:'EQUITY',    v: equityStr,  c: '#e8f4ff'   },
+    { l:'OPEN P&L',  v: pnlStr,    c: pnlColor     },
+    { l:'CLOSED P&L',v: closedStr, c: closedColor  },
+    { l:'MARGIN',    v: marginStr,  c: '#c8aaff'   },
+  ];
+  row2.forEach(({ l, v, c }, i) => {
+    const cx = left + i * cw2;
+    if (i > 0) { ctx.fillStyle='#1a2848'; ctx.fillRect(cx, ROW2_TOP+1, 1, ROW2_H); }
+    ctx.fillStyle='#aaddff'; ctx.font='bold 9px Courier New';
+    ctx.textAlign='left'; ctx.fillText(l, cx+6, ROW2_TOP+13);
+    ctx.fillStyle = c;
+    ctx.font      = v.length > 8 ? 'bold 11px Courier New' : 'bold 14px Courier New';
+    ctx.fillText(v, cx+6, ROW2_TOP+30);
+  });
+
+  // ── Navigation dots ───────────────────────────────────────────────────────
+  const dotsY = top + height - 7;
+  ctx.textAlign='center';
+  const dotCount   = activePairs.length;
+  const dotsStartX = left + width/2 - ((dotCount-1) * 16) / 2;
+  for (let i = 0; i < dotCount; i++) {
+    ctx.fillStyle = i === tvPairIndex ? '#60c0ff' : '#2a4060';
+    ctx.beginPath(); ctx.arc(dotsStartX + i*16, dotsY, 3, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.font='16px sans-serif';
+  ctx.fillText('›', left+width-14, top+height/2+8);
+  ctx.fillText('‹', left+14,       top+height/2+8);
+  ctx.textAlign='left';
+}
+
+function drawWindow() {
+  const left=WINDOW_X, top=32, width=WINDOW_WIDTH, height=WINDOW_HEIGHT;
+  const h=new Date().getUTCHours();
+  let s1,s2;
+  if(h>=5&&h<7){s1='#ff9955';s2='#ffcc66';}
+  else if(h>=7&&h<17){s1='#3a80d0';s2='#70aae8';}
+  else if(h>=17&&h<20){s1='#e05520';s2='#aa3008';}
+  else{s1='#080820';s2='#101848';}
+  ctx.fillStyle='rgb(32,32,32)'; ctx.fillRect(left-7,top-7,width+14,height+14);
+  ctx.fillStyle='rgb(44,44,44)'; ctx.fillRect(left-4,top-4,width+8,height+8);
+  ctx.fillStyle=s1; ctx.fillRect(left,top,width,Math.floor(height*0.55));
+  ctx.fillStyle=s2; ctx.fillRect(left,top+Math.floor(height*0.55),width,height-Math.floor(height*0.55));
+  if(currentWeather==='sun'&&h>=7&&h<17){
+    ctx.fillStyle='#ffe850'; ctx.beginPath(); ctx.arc(left+width-20,top+16,12,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ffd020'; ctx.beginPath(); ctx.arc(left+width-20,top+16, 8,0,Math.PI*2); ctx.fill();
+  }
+  if(currentWeather==='cloud'||currentWeather==='rain'){
+    [[22,15,9],[38,11,13],[56,17,9],[80,13,11],[105,18,8]].forEach(([cx,cy,r])=>{
+      ctx.fillStyle=currentWeather==='rain'?'rgba(155,160,178,0.85)':'rgba(240,242,248,0.88)';
+      ctx.beginPath(); ctx.arc(left+cx,top+cy,r,0,Math.PI*2); ctx.fill();
+    });
+  }
+  if(currentWeather==='rain'){
+    ctx.strokeStyle='rgba(140,175,215,0.7)'; ctx.lineWidth=1;
+    raindrops.forEach(d=>{
+      ctx.beginPath(); ctx.moveTo(left+d.x*width,top+d.y*height);
+      ctx.lineTo(left+d.x*width-1,top+d.y*height+6); ctx.stroke();
+      d.y+=d.speed/height; if(d.y>1){d.y=0;d.x=Math.random();}
+    });
+  }
+  if(h<5||h>=20){
+    ctx.fillStyle='#d8e4ff';
+    [[14,9],[36,4],[62,13],[86,6],[108,16],[28,25],[72,21],[116,28],[48,32]].forEach(([sx,sy])=>{
+      ctx.beginPath(); ctx.arc(left+sx,top+sy,1.1,0,Math.PI*2); ctx.fill();
+    });
+    ctx.fillStyle='#d4d8a4'; ctx.beginPath(); ctx.arc(left+104,top+18,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=s1;        ctx.beginPath(); ctx.arc(left+109,top+14, 8,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle='#14182a';
+  [[0,16,12],[13,24,10],[25,20,16],[43,30,11],[56,22,14],[72,26,9],[83,23,12],[97,33,8],[107,18,11],[120,25,14]].forEach(([bx,bh,bw])=>{
+    ctx.fillRect(left+bx,top+height-bh,bw,bh);
+  });
+  ctx.fillStyle='rgb(32,32,32)';
+  ctx.fillRect(left-1,top+Math.floor(height/2)-1,width+2,3);
+  ctx.fillRect(left+Math.floor(width/2)-1,top-1,3,height+2);
+  const open=isMarketOpen();
+  ctx.fillStyle=open?'#165818':'#581414'; ctx.fillRect(left-7,top+height+5,width+14,14);
+  ctx.font='bold 14px Courier New'; ctx.textAlign='center';
+  ctx.fillStyle=open?'#48e068':'#e03838';
+  ctx.fillText(open?'MARKET OPEN':'MARKET CLOSED',left+width/2,top+height+14);
+  ctx.textAlign='left';
+}
+
+function drawWhiteboard() {
+  const left=WHITEBOARD_X, width=WHITEBOARD_WIDTH, boardTop=20, boardHeight=WALL_HEIGHT-boardTop-4;
+  ctx.fillStyle='#222'; ctx.fillRect(left-4,boardTop-4,width+8,boardHeight+8);
+  ctx.fillStyle='#f8f8f6'; ctx.fillRect(left,boardTop,width,boardHeight);
+  ctx.fillStyle='#2a2a2a'; ctx.fillRect(left+width/2-22,boardTop-10,44,8);
+  ctx.fillStyle='#111'; ctx.fillRect(left-4,boardTop+boardHeight-5,width+8,7);
+  ctx.fillStyle='#1a44cc'; ctx.fillRect(left+width-55,boardTop+boardHeight-3,22,3);
+  ctx.fillStyle='#cc1a1a'; ctx.fillRect(left+width-30,boardTop+boardHeight-3,22,3);
+  ctx.font='bold 14px sans-serif'; ctx.fillStyle='#111'; ctx.textAlign='left';
+  ctx.fillText('PREFLIGHT',left+10,boardTop+18);
+  ctx.fillStyle='#bbb'; ctx.fillRect(left+10,boardTop+22,width-20,1);
+  ctx.font='14px Courier New';
+  [['ollama',marketData.preflight.ollama],
+   ['crew api',marketData.preflight.crewApi],
+   ['mt5 vm',marketData.preflight.mt5Vm]].forEach(([l,v],i)=>{
+    ctx.fillStyle='#1a1a1a'; ctx.fillText(l,left+12,boardTop+38+i*26);
+    ctx.font='bold 14px Courier New';
+    if(v===null) { ctx.fillStyle='#aaa';    ctx.fillText('?',left+112,boardTop+38+i*26); }
+    else if(v)   { ctx.fillStyle='#1a8020'; ctx.fillText('✓',left+112,boardTop+38+i*26); }
+    else         { ctx.fillStyle='#a01818'; ctx.fillText('✗',left+112,boardTop+38+i*26); }
+    ctx.font='14px Courier New';
+  });
+  ctx.fillStyle='#ccc'; ctx.fillRect(left+10,boardTop+108,width-20,1);
+  const live = marketData.lastUpdate && marketData.lastUpdate !== 'demo mode' && !marketData.is_demo;
+  ctx.font='bold 14px sans-serif'; ctx.fillStyle=live?'#1a8020':'#906010';
+  ctx.fillText(live?'● LIVE':'● DEMO',left+12,boardTop+124);
+  ctx.fillStyle='#404040'; ctx.fillRect(left+16,WALL_HEIGHT,4,4); ctx.fillRect(left+width-20,WALL_HEIGHT,4,4);
+  ctx.fillStyle='#333';
+  ctx.beginPath(); ctx.arc(left+18,       WALL_HEIGHT+8,3,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(left+width-18, WALL_HEIGHT+8,3,0,Math.PI*2); ctx.fill();
+}
+
+function drawFurniture() {
+  Object.entries(FURNITURE).forEach(([key,pos])=>{
+    const img=furnitureSprites[key];
+    if(img&&img.complete&&img.naturalWidth>0){
+      ctx.imageSmoothingEnabled=false; ctx.drawImage(img,pos.x,pos.y,pos.w,pos.h); ctx.imageSmoothingEnabled=true;
+    }else{
+      ctx.fillStyle='rgba(80,80,90,0.22)'; ctx.fillRect(pos.x,pos.y,pos.w,pos.h);
+      ctx.fillStyle='#555'; ctx.font='8px Courier New'; ctx.textAlign='center';
+      ctx.fillText(key.replace(/_/g,' '),pos.x+pos.w/2,pos.y+pos.h/2+3); ctx.textAlign='left';
+    }
+  });
+}
+
+// ─── Collision ────────────────────────────────────────────────────────────────
+const WALK_SPEED  = 1.5;
+const WALL_BUFFER = 20;
+const FURN_BUFFER = 15;
+
+function isFurnitureBlocked(newX, newY) {
+  const agentLeft  = newX + SPRITE_SIZE * 0.25;
+  const agentRight = newX + SPRITE_SIZE * 0.75;
+  const agentFeet  = newY + SPRITE_SIZE;
+  for (const furn of Object.values(FURNITURE)) {
+    const xOverlap = agentRight > furn.x && agentLeft < furn.x + furn.w;
+    if (xOverlap && agentFeet < furn.y + furn.h + FURN_BUFFER) return true;
+  }
+  return false;
+}
+
+// ─── Movement ─────────────────────────────────────────────────────────────────
+function updateAgentMovement() {
+  const now = Date.now();
+
+  AGENTS.forEach(agent => {
+    const pos     = agentPos[agent.key];
+    const stObj   = agentState[agent.key];
+    const wrapper = agentWrappers[agent.key];
+    const img     = agentImgs[agent.key];
+    const dormant = agent.phase === 2;
+
+    if (now >= pos.wanderTimer) {
+      const dirs = dormant
+        ? ['pause','north','south','east','west']
+        : ['pause','north','south','south','east','west'];
+      const choice = dirs[Math.floor(Math.random() * dirs.length)];
+
+      if (choice === 'pause') {
+        pos.isWandering = false;
+        pos.vx = 0; pos.vy = 0;
+        pos.moveDir = 'south';
+        pos.wanderTimer = now + (dormant ? 2500 : 1500) + Math.random() * 1500;
+      } else {
+        const speed = dormant ? WALK_SPEED * 0.55 : WALK_SPEED;
+        pos.moveDir     = choice;
+        pos.isWandering = true;
+        pos.vx = choice==='east' ? speed : choice==='west' ? -speed : 0;
+        pos.vy = choice==='south'? speed : choice==='north'? -speed : 0;
+        pos.wanderTimer = now + 800 + Math.random() * 2200;
+      }
+    }
+
+    if (pos.isWandering) {
+      const newX = pos.x + pos.vx;
+      const newY = pos.y + pos.vy;
+      const blocked =
+        newX < 0 ||
+        newX + SPRITE_SIZE > CANVAS_WIDTH ||
+        newY < WALL_HEIGHT + WALL_BUFFER ||
+        newY + SPRITE_SIZE > CANVAS_HEIGHT - 5 ||
+        isFurnitureBlocked(newX, newY);
+      if (blocked) {
+        pos.isWandering = false;
+        pos.vx = 0; pos.vy = 0;
+        pos.moveDir = 'south';
+        pos.wanderTimer = now + 400 + Math.random() * 600;
+      } else {
+        pos.x = newX;
+        pos.y = newY;
+      }
+    }
+
+    wrapper.style.left = `${(pos.x / CANVAS_WIDTH)  * 100}%`;
+    wrapper.style.top  = `${(pos.y / CANVAS_HEIGHT) * 100}%`;
+
+    const file   = pos.isWandering
+      ? `${agent.sprite}_walk_${pos.moveDir}`
+      : getStoppedSpriteFile(agent.sprite, stObj.status);
+    const newSrc = `${CHARACTER_URL}${file}.gif`;
+    if (img.src !== newSrc) img.src = newSrc;
+  });
+
+  [...AGENTS]
+    .sort((a, b) => agentPos[a.key].y - agentPos[b.key].y)
+    .forEach((agent, rank) => {
+      agentWrappers[agent.key].style.zIndex = rank + 1;
+    });
+}
+
+setInterval(updateAgentMovement, 50);
+
+// ─── Agent overlay ────────────────────────────────────────────────────────────
+const PHASE2_DESCRIPTIONS = {
+  strat: 'Evaluates entry signal quality before Execution Coordinator.',
+  perf:  'Tracks win rate, P&L and drawdown. Weekly Telegram summaries.',
+  sess:  'Session awareness. Prevents entries during poor liquidity windows.',
+  corr:  'Monitors cross-pair exposure. Prevents correlated pairs opening simultaneously.',
+  dd:    'Monitors total portfolio drawdown across all pairs.',
+  news:  'Economic calendar sentinel. Blocks entries before high-impact news events.',
+  journ: 'Plain-English summaries of each completed sequence.',
+  scout: 'Compares signals against historical patterns with confidence scores.',
+  meta:  'Reviews crew decisions across bars. Flags systematic avoidance patterns.',
+};
+
+function openAgentOverlay(i) {
+  const agent      = AGENTS[i];
+  const state      = agentState[agent.key];
+  const isDormant  = state.status === 'dormant';  // ← check actual status, not phase
+
+  document.getElementById('overlayTitle').textContent =
+    agent.phase === 1 ? agent.label : agent.label + ' — Phase 2';
+  document.getElementById('overlaySubtitle').textContent =
+    (isDormant ? 'DORMANT' : 'ACTIVE') + ' | ' + agent.key.toUpperCase();
+
+  let body = '';
+  if (isDormant) {
+    body = '<div style="color:#6070a0;font-size:9px;margin-bottom:5px">STATUS</div>'
+         + '<div style="color:#b07010;margin-bottom:12px">Phase 2 — activates when implemented.</div>'
+         + '<div style="color:#6070a0;font-size:9px;margin-bottom:5px">PLANNED ROLE</div>'
+         + '<div style="color:#1a2880;">' + (PHASE2_DESCRIPTIONS[agent.key] || agent.label) + '</div>';
+  } else {
+    body = '<div style="color:#6070a0;font-size:9px;margin-bottom:5px">SUMMARY</div>'
+         + '<div style="color:#1a3090;margin-bottom:12px;font-weight:bold;">' + (state.summary || 'Awaiting data.') + '</div>'
+         + '<div style="color:#6070a0;font-size:9px;margin-bottom:5px">FULL OUTPUT</div>'
+         + '<div style="color:#1a1840;white-space:pre-wrap;">' + (state.rawOutput || 'No output yet.') + '</div>';
+  }
+  document.getElementById('overlayBody').innerHTML = body;
+  document.getElementById('agentOverlay').classList.add('visible');
+  document.getElementById('agentLayer').style.pointerEvents = 'none'; 
+}
+	
+function closeAgentOverlay() {
+  document.getElementById('agentOverlay').classList.remove('visible');
+  document.getElementById('agentLayer').style.pointerEvents = '';
+}
+
+// ─── Click handling ───────────────────────────────────────────────────────────
+canvas.addEventListener('click', e => {
+  const rect   = canvas.getBoundingClientRect();
+  const clickX = (e.clientX - rect.left) * (CANVAS_WIDTH  / rect.width);
+  const clickY = (e.clientY - rect.top)  * (CANVAS_HEIGHT / rect.height);
+
+  // TV screen click — cycle to next pair
+  if (clickX > TV_BEZEL_LEFT && clickX < TV_BEZEL_RIGHT && clickY > 20 && clickY < 150) {
+    if (activePairs.length > 0) {
+      tvPairIndex = (tvPairIndex + 1) % activePairs.length;
+    }
+    return;
+  }
+});
+
+// ─── Data loading ─────────────────────────────────────────────────────────────
+function loadMockData() {
+  // Set idle states — mock doesn't pretend to have trade data
+  agentState.regime = { status:'idle', summary:'Awaiting H4 bar data.', rawOutput:'' };
+  agentState.risk   = { status:'idle', summary:'Awaiting H4 bar data.', rawOutput:'' };
+  agentState.exec   = { status:'idle', summary:'Awaiting H4 bar data.', rawOutput:'' };
+  marketData.preflight  = { ollama:true, crewApi:true, mt5Vm:true };
+  marketData.lastUpdate = 'demo mode';
+  marketData.is_demo    = true;
+  AGENTS.forEach(a => applyAgentVisuals(a.key));
+}
+
+async function fetchJournalist() {
+  try {
+    const res = await fetch(`${API_BASE}/journalist?last=1`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const seqs = data.sequences || [];
+
+    if (seqs.length === 0) return;
+
+    const latest      = seqs[0];
+    const hasNarrative = latest.narrative && latest.narrative.length > 10;
+
+    agentState.journ = {
+      status:    hasNarrative ? 'approved' : 'idle',
+      summary:   `${latest.symbol} ${latest.direction} | ${latest.result} | Net $${latest.net_profit}`,
+      rawOutput: latest.narrative || `${latest.symbol} ${latest.direction} sequence closed. Net: $${latest.net_profit}. No narrative yet.`,
+    };
+    applyAgentVisuals('journ');
+  } catch(_) {}
+}
+	
+async function fetchPerformance() {
+  try {
+    const res = await fetch(`${API_BASE}/performance?days=30`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    // Update closedPnl for each pair
+    Object.entries(data.by_symbol || {}).forEach(([sym, stats]) => {
+      if (marketData.pairs[sym]) {
+        marketData.pairs[sym].closedPnl = stats.total_net;
+      }
+    });
+
+    let totalTrades = 0, totalWins = 0, totalNet = 0;
+    Object.values(data.by_symbol || {}).forEach(s => {
+      totalTrades += s.total_trades;
+      totalWins   += s.wins;
+      totalNet    += s.total_net;
+    });
+
+    const winRate = totalTrades > 0 ? (totalWins / totalTrades * 100) : 0;
+
+    let summaryLines = [`Last 30 days | ${totalTrades} trades | Net $${totalNet.toFixed(2)}`];
+    Object.entries(data.by_account || {}).forEach(([acct, stats]) => {
+      summaryLines.push(`${acct.toUpperCase()}: WR ${stats.win_rate}% | Net $${stats.total_net}`);
+    });
+    Object.entries(data.by_symbol || {}).forEach(([sym, stats]) => {
+      summaryLines.push(`  ${sym} [${stats.account}]: ${stats.total_trades}T WR ${stats.win_rate}% Net $${stats.total_net}`);
+    });
+
+    agentState.perf = {
+      status:    totalTrades === 0 ? 'dormant'
+               : winRate >= 60    ? 'approved'
+               : winRate < 40     ? 'anxious'
+               : 'idle',
+      summary:   summaryLines[0],
+      rawOutput: summaryLines.join('\n'),
+    };
+    applyAgentVisuals('perf');
+
+  } catch(_) {}
+}
+
+async function fetchScout() {
+  if (activePairs.length === 0) return;
+  try {
+    const pair = activePairs[0];
+    const res  = await fetch(`${API_BASE}/scout?symbol=${pair.symbol}&timeframe=${pair.timeframe}`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (data.similar_count < 3) return;
+
+    const conf = data.confidence || 0;
+    // Clean up raw output — remove the "confidence,N" first line
+    const rawLines = (data.summary || '').split('\n');
+    const cleanRaw = rawLines.filter(l => !l.toLowerCase().startsWith('confidence')).join('\n').trim();
+
+    agentState.scout = {
+      status:    conf >= 7 ? 'approved'
+               : conf >= 4 ? 'idle'
+               : conf > 0  ? 'anxious'
+               : 'dormant',
+      summary:   `Confidence ${conf}/10 | ${data.similar_count} similar bars | QQE ${data.current_qqe}`,
+      rawOutput: cleanRaw || data.summary,
+    };
+    applyAgentVisuals('scout');
+  } catch(_) {}
+}
+
+async function fetchMeta() {
+  if (activePairs.length === 0) return;
+  try {
+    const pair = activePairs[0];
+    const res  = await fetch(`${API_BASE}/meta?symbol=${pair.symbol}&timeframe=${pair.timeframe}`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (data.status === 'PENDING') return; // not enough decisions yet
+
+    agentState.meta = {
+      status:    data.status === 'ALERT'  ? 'anxious'
+               : data.status === 'REVIEW' ? 'point'
+               : 'approved',
+      summary:   data.summary || `Meta: ${data.status}`,
+      rawOutput: data.narrative || 'No output yet.',
+    };
+    applyAgentVisuals('meta');
+  } catch(_) {}
+}
+
+async function fetchLiveData() {
+  if (activePairs.length === 0) return;
+
+  const t = v => v===1 ? '+1 UP' : v===-1 ? '-1 DOWN' : 'FLAT';
+
+  // Fetch state for all active pairs in parallel
+  const fetches = activePairs.map(p =>
+    fetch(`${API_BASE}/state?symbol=${p.symbol}&timeframe=${p.timeframe}`)
+  );
+  const results = await Promise.allSettled(fetches);
+
+  let gotAny = false;
+  let isDemo = true;
+
+  for (let i = 0; i < activePairs.length; i++) {
+    const pair   = activePairs[i];
+    const result = results[i];
+    if (result.status !== 'fulfilled' || !result.value.ok) continue;
+
+    const data    = await result.value.json();
+    const buySeq  = data.sequences?.buy_sequence  ?? {};
+    const sellSeq = data.sequences?.sell_sequence ?? {};
+    const activeSeq = buySeq.active ? buySeq : sellSeq.active ? sellSeq : null;
+
+    marketData.pairs[pair.symbol] = {
+      // preserve config fields
+      timeframe:  pair.timeframe,
+      magic:      pair.magic,
+      account:    pair.account,
+      label:      pair.label || pair.symbol,
+      // preserve closedPnl set by fetchPerformance
+      closedPnl:  marketData.pairs[pair.symbol]?.closedPnl ?? null,
+      // live data
+      barTime:    data.meta.last_bar_time.slice(0,16).replace('T',' '),
+      qqe:        data.signal.qqe_value.toFixed(2),
+      trend:      t(data.signal.qmp_trend),
+      action:     '--',
+      spread:     data.price.spread + 'pt',
+      seqPnl:     activeSeq ? activeSeq.total_profit : null,
+      seqLots:    activeSeq ? activeSeq.total_lots   : 0,
+      seqDir:     buySeq.active ? 'BUY' : sellSeq.active ? 'SELL' : null,
+      inRecovery: !!(buySeq.in_recovery || sellSeq.in_recovery),
+      posCount:   data.positions?.length  ?? 0,
+      equity:     data.account?.equity    ?? null,
+      openPnl:    data.account?.profit    ?? null,
+      margin:     data.account?.margin    ?? null,
+    };
+
+    // Use first pair's account type for the whiteboard LIVE/DEMO indicator
+    if (i === 0) isDemo = data.account?.is_demo ?? true;
+    gotAny = true;
+  }
+
+  if (!gotAny) { loadMockData(); return; }
+
+  marketData.is_demo    = isDemo;
+  marketData.lastUpdate = new Date().toUTCString().replace(/.*?(\d+:\d+:\d+).*/, '$1') + ' UTC';
+  marketData.preflight.crewApi = true;
+
+  // Fetch last analysis results — n8n triggers /analyse, dashboard reads cache only
+  for (const pair of activePairs) {
+    try {
+      const res = await fetch(`${API_BASE}/last-analysis?symbol=${pair.symbol}`);
+      if (!res.ok) continue;
+      const data = await res.json();
+
+      // Only update agent states from the first pair's analysis
+      if (pair.symbol === activePairs[0].symbol) {
+        agentState.regime = {
+          status:    'thinking',
+          summary:   data.regime.summary,
+          rawOutput: data.regime.raw,
+        };
+        agentState.risk = {
+          status:    data.risk.summary.includes('APPROVED') ? 'approved' : 'rejected',
+          summary:   data.risk.summary,
+          rawOutput: data.risk.raw,
+        };
+        agentState.exec = {
+          status:    data.execution.summary.includes('NO ACTION') ? 'idle' : 'action',
+          summary:   data.execution.summary,
+          rawOutput: data.execution.raw,
+        };
+        if (data.strategy) {
+          agentState.strat = {
+            status:    data.strategy.summary.toUpperCase().includes('HOLD') ? 'anxious' : 'approved',
+            summary:   data.strategy.summary,
+            rawOutput: data.strategy.raw,
+          };
+          applyAgentVisuals('strat');
+        }
+        if (data.session) {
+          agentState.sess = {
+            status:    data.session.status === 'SESSION_WARN' ? 'anxious' : 'idle',
+            summary:   data.session.summary,
+            rawOutput: `Session: ${data.session.session} | Quality: ${data.session.quality} | ${data.session.status}`,
+          };
+          applyAgentVisuals('sess');
+        }
+        if (data.drawdown) {
+          agentState.dd = {
+            status:    data.drawdown.status === 'DD_HALT' ? 'cry'
+                     : data.drawdown.status === 'DD_WARN' ? 'anxious'
+                     : 'idle',
+            summary:   data.drawdown.summary,
+            rawOutput: `Drawdown: ${data.drawdown.drawdown_pct}% | Status: ${data.drawdown.status}`,
+          };
+          applyAgentVisuals('dd');
+        }
+        if (data.correlation) {
+          agentState.corr = {
+            status:    data.correlation.status === 'CORR_WARN' ? 'anxious' : 'approved',
+            summary:   data.correlation.summary,
+            rawOutput: data.correlation.conflicts.length > 0
+                         ? data.correlation.conflicts.join('\n')
+                         : data.correlation.summary,
+          };
+          applyAgentVisuals('corr');
+        }
+        if (data.news) {
+          agentState.news = {
+            status:    data.news.status === 'NEWS_BLOCK' ? 'anxious'
+                     : data.news.status === 'NEWS_WARN'  ? 'point'
+                     : 'approved',
+            summary:   data.news.summary,
+            rawOutput: data.news.events.length > 0
+                         ? data.news.events.join('\n')
+                         : data.news.summary,
+          };
+          applyAgentVisuals('news');
+        }
+        const rawAction = data.execution.summary.split('|')[0].trim();
+        marketData.pairs[pair.symbol].action = rawAction
+          .replace('NO ACTION', 'NO ACT')
+          .replace('OPEN_SELL', 'SELL')
+          .replace('OPEN_BUY',  'BUY')
+          .replace('OPEN SELL', 'SELL')
+          .replace('OPEN BUY',  'BUY');
+      }
+    } catch(_) {}
+  }
+
+  AGENTS.forEach(a => {
+    if (a.key !== 'perf') applyAgentVisuals(a.key);
+  });
+}
+
+// ─── Alt gesture animation ───────────────────────────────────────────────────
+let _altActive = false;
+
+async function playAltGesture(agentKey) {
+  if (_altActive) return;
+  _altActive = true;
+
+  const overlay = document.getElementById('altOverlay');
+  const sprite  = document.getElementById('altSprite');
+
+  // Load the alt GIF
+  sprite.src = `${CHARACTER_URL}${agentKey}_alt.gif`;
+
+  // Slide up from bottom
+  overlay.classList.add('visible');
+
+  // Hold for 3 seconds (enough for GIF to loop a couple times)
+  await new Promise(r => setTimeout(r, 3000));
+
+  // Slide back down
+  sprite.style.transition = 'transform 0.4s cubic-bezier(0.55, 0, 0.45, 1)';
+  sprite.style.transform  = 'translateX(-50%) translateY(100%)';
+
+  await new Promise(r => setTimeout(r, 400));
+
+  // Clean up
+  overlay.classList.remove('visible');
+  sprite.style.transition = '';
+  sprite.style.transform  = '';
+  sprite.src = '';
+  _altActive = false;
+}
+
+async function pollAnimations() {
+  try {
+    const res  = await fetch(`${API_BASE}/pending-animation`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.agent && data.gesture === 'alt') {
+      await playAltGesture(data.agent);
+    }
+  } catch(_) {}
+}
+
+// ─── Startup ──────────────────────────────────────────────────────────────────
+async function init() {
+  await fetchSymbols();     // load pair list first — populates activePairs
+  loadMockData();            // set initial agent states
+  await fetchLiveData();     // first live fetch
+  await fetchPerformance();
+  await fetchJournalist();
+  await fetchScout();
+  await fetchMeta();
+  setInterval(fetchLiveData, 300000); // refresh every 5 minutes
+  setInterval(fetchPerformance, 300000);
+  setInterval(fetchJournalist,  300000);
+  setInterval(fetchScout,       300000);
+  setInterval(fetchMeta,        900000);       // refresh every 15 min — slower
+  setInterval(pollAnimations,   3000); 
+}
+
+init();
+</script>

@@ -1,0 +1,20 @@
+{
+  "symbols": [
+    {
+      "symbol":    "EURUSD",
+      "timeframe": "H4",
+      "magic":     100401,
+      "account":   "demo",
+      "active":    true,
+      "label":     "Euro / US Dollar"
+    },
+    {
+      "symbol":    "AUDUSD",
+      "timeframe": "H4",
+      "magic":     100402,
+      "account":   "demo",
+      "active":    true,
+      "label":     "Australian Dollar / US Dollar"
+    }
+  ]
+}

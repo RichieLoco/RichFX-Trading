@@ -1,0 +1,12 @@
+{
+  "_comment": "Correlation coefficients between currency pairs. Values closer to 1.0 = stronger positive correlation. Add or remove pairs as needed. No service restart required — loaded fresh on each /analyse call.",
+  "pairs": [
+    { "a": "EURUSD", "b": "AUDUSD", "coefficient": 0.7  },
+    { "a": "EURUSD", "b": "GBPUSD", "coefficient": 0.8  },
+    { "a": "EURUSD", "b": "NZDUSD", "coefficient": 0.65 },
+    { "a": "AUDUSD", "b": "NZDUSD", "coefficient": 0.9  },
+    { "a": "GBPUSD", "b": "NZDUSD", "coefficient": 0.65 },
+    { "a": "USDCAD", "b": "USDCHF", "coefficient": 0.7  },
+    { "a": "USDCAD", "b": "USDJPY", "coefficient": 0.6  }
+  ]
+}
