@@ -24,6 +24,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -34,10 +35,15 @@ BASE_DIR    = "/home/richi/trading_system"
 SPRITES_DIR = os.path.join(BASE_DIR, "sprites")
 CONFIG_PATH = os.path.join(BASE_DIR, "config", "symbols.json")
 
-VM_HOST   = "100.80.62.2"
-VM_HEALTH_URL = "http://100.80.62.2:8765"
-VM_USER   = "richi-rdp"
-STATE_DIR = "C:/__RichStuff/FX/trading_system/data/signals"
+
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+VM_HOST       = os.getenv("VM_HOST", "100.80.62.2")
+VM_USER       = os.getenv("VM_USER", "richi-rdp")
+VM_BASE_PATH  = os.getenv("VM_BASE_PATH", "C:/__RichStuff/FX")
+VM_DB_WRITE_PATH = os.getenv("VM_DB_WRITE_PATH", "C:/Users/richi-rdp/db_write.py")
+VM_HEALTH_URL = f"http://{VM_HOST}:8765"
+STATE_DIR     = f"{VM_BASE_PATH}/trading_system/data/signals"
 
 # Fallback if config file is missing — change to False when going live
 ACCOUNT_IS_DEMO_DEFAULT = True
@@ -374,7 +380,7 @@ def write_decision_to_db(decision: dict):
         result = subprocess.run(
             ["ssh", "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=5",
              "-o", "BatchMode=yes", f"{VM_USER}@{VM_HOST}",
-             "python C:/Users/richi-rdp/db_write.py"],
+             f"python {VM_DB_WRITE_PATH}"],
             input=payload.encode(),
             capture_output=True, timeout=15,
         )
@@ -1153,7 +1159,7 @@ async def analyse(req: AnalyseRequest):
                 result  = subprocess.run(
                     ["ssh", "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=5",
                      "-o", "BatchMode=yes", f"{VM_USER}@{VM_HOST}",
-                     "python C:/Users/richi-rdp/db_write.py"],
+                     f"python {VM_DB_WRITE_PATH}"],
                     input=payload.encode(),
                     capture_output=True, timeout=15,
                 )
