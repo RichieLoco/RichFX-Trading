@@ -10,13 +10,15 @@ An AI-powered algorithmic trading monitoring system built around a 12-agent Crew
 
 ## Hardware
 
+All machines live in a **GeeekPi DeskPi RackMate Server T2 Cabinet**, with the trading floor dashboard displayed on a **GeeekPi 7.84" 1280×400 LCD Touchscreen** mounted in the rack — perfectly matching the canvas resolution of the dashboard.
+
 | Machine | Device | RAM | Role |
 |---------|--------|-----|------|
 | **ubuntu-ai** | Minisforum MS-S1 MAX | 128GB unified | Ollama LLM inference, FastAPI crew API, dashboard |
 | **NAS** | Minisforum AI N5 Pro | 96GB | n8n automation, Win11 VM host |
-| **Win11 VM** | LXC on NAS | — | MT5 terminal, bridge, health server, Telegram alerter |
-| **dev-pc** | Minisforum AI X1 470 Pro | 128GB | EA development and testing (MQL5) |
-| **RPi** | Raspberry Pi | — | Cloudflare tunnel → crew.richielo.co |
+| **Win11 VM** | LXC on NAS | 8GB | MT5 terminal, bridge, health server, Telegram alerter |
+| **dev-pc** | Minisforum AI X1 470 Pro | 128GB | EA development and MQL5 testing |
+| **RPi4** | Raspberry Pi 4B| 8GB | Cloudflare tunnel → crew.richielo.co |
 
 All machines connected via **Tailscale** mesh VPN.
 
@@ -28,7 +30,7 @@ All machines connected via **Tailscale** mesh VPN.
 ┌─────────────────────────────────────────────────────────────────┐
 │  ubuntu-ai — Minisforum MS-S1 MAX (128GB)                       │
 │  ├── Ollama (LLM inference)                 :11434              │
-│  │     qwen3-14b-8k, deepseek-r1-14b-8k                        │
+│  │     qwen3-14b-8k, deepseek-r1-14b-8k                         │
 │  │     qwen25-14b-8k  (~40GB loaded)                            │
 │  ├── FastAPI Crew API                       :8000               │
 │  └── Trading Floor Dashboard               /ui/                 │
@@ -40,10 +42,10 @@ All machines connected via **Tailscale** mesh VPN.
 │        ├── mt5_bridge.py    (state + DB writer)                 │
 │        ├── vm_health.py     :8765                               │
 │        ├── telegram_alerter.py                                  │
-│        └── richfx.db        (centralised SQLite)               │
+│        └── richfx.db        (centralised SQLite)                │
 ├─────────────────────────────────────────────────────────────────┤
 │  Raspberry Pi                                                   │
-│  └── Cloudflare Tunnel → crew.richielo.co                      │
+│  └── Cloudflare Tunnel → crew.richielo.co                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -227,7 +229,6 @@ Each agent requires these animation files:
 {agent}_walk_south/north/east/west.gif
 {agent}_cheer.gif   {agent}_cry.gif
 {agent}_point.gif   {agent}_anxious.gif
-{agent}_alt.gif     (female agents only — zoom gesture)
 ```
 
 ---
