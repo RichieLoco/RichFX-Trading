@@ -9,10 +9,10 @@ Complete setup instructions for the RichFX trading system across all machines.
 ### Network
 - All machines connected via **Tailscale** mesh VPN
 - Tailscale IPs:
-  - ubuntu-ai (Ubuntu): `100.127.251.110`
-  - Win11 VM: `100.80.62.2`
-  - NAS LXC (n8n): `100.110.69.69`
-  - Raspberry Pi (tunnel): `100.88.68.108`
+  - ubuntu-ai (Ubuntu): `<ubuntu-ai-tailscale-ip>`
+  - Win11 VM: `<win11-vm-tailscale-ip>`
+  - NAS LXC (n8n): `<nas-tailscale-ip>`
+  - Raspberry Pi (tunnel): `<rpi-tailscale-ip>`
 
 ### Accounts Required
 - Cloudflare account (for tunnel and Access)
@@ -100,10 +100,10 @@ pip install fastapi uvicorn crewai httpx
 ssh-keygen -t ed25519 -C "richfx-bridge"
 
 # Copy public key to VM
-ssh-copy-id richi-rdp@100.80.62.2
+ssh-copy-id richi-rdp@<win11-vm-tailscale-ip>
 
 # Test connection
-ssh richi-rdp@100.80.62.2 "echo connected"
+ssh richi-rdp@<win11-vm-tailscale-ip> "echo connected"
 ```
 
 ### 5. Configure Symbols
@@ -275,13 +275,13 @@ Start-Process python -ArgumentList "C:\__RichStuff\FX\trading_system\core\telegr
 From the ubuntu-ai:
 ```bash
 # Health check
-curl http://100.80.62.2:8765/health
+curl http://<win11-vm-tailscale-ip>:8765/health
 
 # History endpoint
-curl "http://100.80.62.2:8765/history?magic=100401&days=30"
+curl "http://<win11-vm-tailscale-ip>:8765/history?magic=100401&days=30"
 
 # State files exist
-ssh richi-rdp@100.80.62.2 "dir C:\__RichStuff\FX\trading_system\data\signals\"
+ssh richi-rdp@<win11-vm-tailscale-ip> "dir C:\__RichStuff\FX\trading_system\data\signals\"
 ```
 
 ### 9. WinSW Services (Recommended)
@@ -325,9 +325,9 @@ docker run -d \
 Create a workflow with:
 
 1. **Cron trigger** — every 5 minutes (or use a custom H4 bar detection)
-2. **HTTP Request** — `GET http://100.80.62.2:8765/health` (preflight VM check)
+2. **HTTP Request** — `GET http://<win11-vm-tailscale-ip>:8765/health` (preflight VM check)
 3. **IF node** — check `status === "ok"`
-4. **HTTP Request** — `POST http://100.127.251.110:8000/analyse`
+4. **HTTP Request** — `POST http://<ubuntu-ai-tailscale-ip>:8000/analyse`
    - Body: `{"symbol": "EURUSD", "timeframe": "H4", "magic": 100401}`
 5. **Telegram node** — send analysis result summary
 
@@ -370,7 +370,7 @@ tunnel: RICH-TUNNEL
 credentials-file: /home/richi/.cloudflared/<tunnel-id>.json
 ingress:
   - hostname: crew.richielo.co
-    service: http://100.127.251.110:8000
+    service: http://<ubuntu-ai-tailscale-ip>:8000
     originRequest:
       connectTimeout: 30s
   - service: http_status:404
@@ -411,13 +411,13 @@ sudo systemctl status richfx-api
 curl http://localhost:8000/health
 
 # 3. VM reachable
-curl http://100.80.62.2:8765/health
+curl http://<win11-vm-tailscale-ip>:8765/health
 
 # 4. State files being written
-ssh richi-rdp@100.80.62.2 "dir C:\__RichStuff\FX\trading_system\data\signals\"
+ssh richi-rdp@<win11-vm-tailscale-ip> "dir C:\__RichStuff\FX\trading_system\data\signals\"
 
 # 5. History endpoint returning data
-curl "http://100.80.62.2:8765/history?magic=0&days=30"
+curl "http://<win11-vm-tailscale-ip>:8765/history?magic=0&days=30"
 
 # 6. Full analysis chain
 curl -s --max-time 600 -X POST http://localhost:8000/analyse \

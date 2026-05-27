@@ -12,7 +12,7 @@ The system is **advisory only** — the crew analyses market conditions and reco
 
 ## Machine Roles
 
-### ubuntu-ai — Ubuntu (100.127.251.110)
+### ubuntu-ai — Ubuntu (<ubuntu-ai-tailscale-ip>)
 
 The primary compute node. Runs all LLM inference and the FastAPI server.
 
@@ -30,7 +30,7 @@ All models configured with 8192 token context window and 60-minute keepalive to 
 
 ---
 
-### Win11 VM — Windows 11 (100.80.62.2)
+### Win11 VM — Windows 11 (<win11-vm-tailscale-ip>)
 
 Runs MetaTrader 5 and the bridge processes that connect it to the Ubuntu server.
 
@@ -45,7 +45,7 @@ The VM is the only machine with a direct MT5 connection. All market data, positi
 
 ---
 
-### NAS LXC — (100.110.69.69)
+### NAS LXC — (<nas-tailscale-ip>)
 
 Runs n8n for workflow automation and scheduling.
 
@@ -57,7 +57,7 @@ n8n is the **sole trigger for `/analyse`**. It fires on each H4 bar close, calls
 
 ---
 
-### Raspberry Pi — (100.88.68.108)
+### Raspberry Pi — (<rpi-tailscale-ip>)
 
 Lightweight always-on device running the Cloudflare tunnel.
 
@@ -86,10 +86,10 @@ mt5_bridge.py
 
 n8n (NAS LXC) — H4 bar schedule
     │
-    ├── preflight: GET http://100.80.62.2:8765/health
-    ├── preflight: GET http://100.127.251.110:8000/health
+    ├── preflight: GET http://<win11-vm-tailscale-ip>:8765/health
+    ├── preflight: GET http://<ubuntu-ai-tailscale-ip>:8000/health
     │
-    └── POST http://100.127.251.110:8000/analyse
+    └── POST http://<ubuntu-ai-tailscale-ip>:8000/analyse
             │   {symbol, timeframe, magic}
             ▼
         crew_api.py

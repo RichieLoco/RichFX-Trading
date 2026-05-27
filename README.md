@@ -24,23 +24,23 @@ All machines connected via **Tailscale** mesh VPN.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  ubuntu-ai — Minisforum MS-S1 MAX (128GB)   100.127.251.110     │
+│  ubuntu-ai — Minisforum MS-S1 MAX (128GB)                       │
 │  ├── Ollama (LLM inference)                 :11434              │
 │  │     qwen3-14b-8k, deepseek-r1-14b-8k                        │
 │  │     qwen25-14b-8k  (~40GB loaded)                            │
 │  ├── FastAPI Crew API                       :8000               │
 │  └── Trading Floor Dashboard               /ui/                 │
 ├─────────────────────────────────────────────────────────────────┤
-│  NAS — Minisforum AI N5 Pro (96GB)          100.110.69.69       │
+│  NAS — Minisforum AI N5 Pro (96GB)                              │
 │  ├── n8n Docker                             :5678               │
-│  └── Win11 VM (LXC)                         100.80.62.2         │
+│  └── Win11 VM (LXC)                                             │
 │        ├── MT5 Terminal + QQE_DCA EA                            │
 │        ├── mt5_bridge.py    (state + DB writer)                 │
 │        ├── vm_health.py     :8765                               │
 │        ├── telegram_alerter.py                                  │
 │        └── richfx.db        (centralised SQLite)               │
 ├─────────────────────────────────────────────────────────────────┤
-│  Raspberry Pi                               100.88.68.108       │
+│  Raspberry Pi                                                   │
 │  └── Cloudflare Tunnel → crew.richielo.co                      │
 └─────────────────────────────────────────────────────────────────┘
 ```
