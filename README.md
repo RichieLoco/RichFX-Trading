@@ -6,6 +6,8 @@ An AI-powered algorithmic trading monitoring system built around a 12-agent Crew
 
 ---
 
+![RichFX Trading Floor](trading_floor_demo.gif)
+
 ## Hardware
 
 | Machine | Device | RAM | Role |
