@@ -111,7 +111,7 @@
     <img id="altSprite" src="" alt="">
 </div>
 </div>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
 <script>
 const canvas = document.getElementById('tradingFloor');
 const ctx    = canvas.getContext('2d');
@@ -137,6 +137,12 @@ const CLOCK_CENTER_X = Math.round(TV_BEZEL_LEFT / 2);
 const WINDOW_X       = Math.round((TV_BEZEL_RIGHT + WHITEBOARD_FRAME_LEFT) / 2) - 69;
 const WINDOW_WIDTH   = 138;
 const WINDOW_HEIGHT  = 96;
+// ─── Sun position + sky state ─────────────────────────────────────────────────
+const SUN_LAT = 51.5074;   // London — change to your location
+const SUN_LON = -0.1278;
+const SUN_BUFFER_MS = 60 * 60 * 1000;  // 60 min buffer either side
+let _sunTimes     = null;
+let _sunTimesDate = null;
 
 const API_BASE 		= window.location.origin;
 const CHARACTER_URL = `${API_BASE}/sprites/characters/`;
@@ -349,13 +355,36 @@ function renderLoop(ts) {
 }
 requestAnimationFrame(renderLoop);
 
+// ─── Sun position + sky state ─────────────────────────────────────────────────
+
+function getSunTimes() {
+  const today = new Date().toDateString();
+  if (_sunTimesDate !== today) {
+    const t       = SunCalc.getTimes(new Date(), SUN_LAT, SUN_LON);
+    _sunTimes     = { sunrise: t.sunrise.getTime(), sunset: t.sunsetStart.getTime() };
+    _sunTimesDate = today;
+  }
+  return _sunTimes;
+}
+
+function getSkyState() {
+  const { sunrise, sunset } = getSunTimes();
+  const now = Date.now();
+
+  if (now < sunrise - SUN_BUFFER_MS)   return 'night';
+  if (now < sunrise + SUN_BUFFER_MS)   return 'dawn';   // 60 min before → 60 min after sunrise
+  if (now < sunset  - SUN_BUFFER_MS)   return 'day';
+  if (now < sunset  + SUN_BUFFER_MS)   return 'dusk';   // 60 min before → 60 min after sunset
+  return 'night';
+}
+
 // ─── Draw functions ───────────────────────────────────────────────────────────
 function drawNightOverlay() {
-  const h = new Date().getUTCHours();
+  const sky = getSkyState();
   let alpha = 0;
-  if      (h >= 20 || h < 5)  alpha = 0.65;
-  else if (h >= 5  && h < 7)  alpha = 0.35;
-  else if (h >= 17 && h < 20) alpha = 0.10;
+  if      (sky === 'night') alpha = 0.65;
+  else if (sky === 'dawn')  alpha = 0.35;
+  else if (sky === 'dusk')  alpha = 0.10;
   if (alpha > 0) {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -546,17 +575,18 @@ function drawTVScreen() {
 
 function drawWindow() {
   const left=WINDOW_X, top=32, width=WINDOW_WIDTH, height=WINDOW_HEIGHT;
+  const sky=getSkyState();
   const h=new Date().getUTCHours();
   let s1,s2;
-  if(h>=5&&h<7){s1='#ff9955';s2='#ffcc66';}
-  else if(h>=7&&h<17){s1='#3a80d0';s2='#70aae8';}
-  else if(h>=17&&h<20){s1='#e05520';s2='#aa3008';}
-  else{s1='#080820';s2='#101848';}
+  if      (sky==='dawn') {s1='#ff9955';s2='#ffcc66';}
+  else if (sky==='day')  {s1='#3a80d0';s2='#70aae8';}
+  else if (sky==='dusk') {s1='#e05520';s2='#aa3008';}
+  else                   {s1='#080820';s2='#101848';}
   ctx.fillStyle='rgb(32,32,32)'; ctx.fillRect(left-7,top-7,width+14,height+14);
   ctx.fillStyle='rgb(44,44,44)'; ctx.fillRect(left-4,top-4,width+8,height+8);
   ctx.fillStyle=s1; ctx.fillRect(left,top,width,Math.floor(height*0.55));
   ctx.fillStyle=s2; ctx.fillRect(left,top+Math.floor(height*0.55),width,height-Math.floor(height*0.55));
-  if(currentWeather==='sun'&&h>=7&&h<17){
+  if(currentWeather==='sun'&&sky==='day'){
     ctx.fillStyle='#ffe850'; ctx.beginPath(); ctx.arc(left+width-20,top+16,12,0,Math.PI*2); ctx.fill();
     ctx.fillStyle='#ffd020'; ctx.beginPath(); ctx.arc(left+width-20,top+16, 8,0,Math.PI*2); ctx.fill();
   }
@@ -574,7 +604,7 @@ function drawWindow() {
       d.y+=d.speed/height; if(d.y>1){d.y=0;d.x=Math.random();}
     });
   }
-  if(h<5||h>=20){
+  if(sky==='night'){
     ctx.fillStyle='#d8e4ff';
     [[14,9],[36,4],[62,13],[86,6],[108,16],[28,25],[72,21],[116,28],[48,32]].forEach(([sx,sy])=>{
       ctx.beginPath(); ctx.arc(left+sx,top+sy,1.1,0,Math.PI*2); ctx.fill();
