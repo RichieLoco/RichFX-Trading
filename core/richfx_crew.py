@@ -275,7 +275,7 @@ def run_performance_analysis(perf_data: dict) -> str:
     return getattr(result, "raw", str(result))
 
 # ─── Journalist Agent ─────────────────────────────────────────────────────────
-llm_journalist = LLM(model="ollama/qwen3-14b-8k", base_url=OLLAMA_URL, temperature=0.3)
+llm_journalist = LLM(model="ollama/gemma4-e4b-8k", base_url=OLLAMA_URL, temperature=0.3)
 
 def create_journalist_agent():
     return Agent(
@@ -327,7 +327,11 @@ def run_journalist_narrative(sequence: dict) -> str:
     from crewai import Crew, Process
     result_obj = Crew(agents=[agent], tasks=[task],
                       process=Process.sequential, verbose=False).kickoff()
-    return getattr(result_obj, "raw", str(result_obj)).strip()
+    raw = getattr(result_obj, "raw", str(result_obj)).strip()
+    # Strip Gemma 4 thinking tokens
+    raw = re.sub(r"Thinking\.\.\..*?\.\.\.done thinking\.", "", raw, flags=re.DOTALL).strip()
+    raw = re.sub(r"Thinking Process:.*?(?=\n[A-Z]|\Z)", "", raw, flags=re.DOTALL).strip()
+    return raw
 
 
 # ─── Backtest Scout Agent ─────────────────────────────────────────────────────

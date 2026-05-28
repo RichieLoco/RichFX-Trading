@@ -146,6 +146,8 @@ const FURNITURE_URL = `${API_BASE}/sprites/furniture/`;
 // activePairs is an array of { symbol, timeframe, magic, account, active, label }
 let activePairs  = [];
 let tvPairIndex  = 0;
+let _tvLastManualClick = 0;
+const TV_MANUAL_PAUSE_MS = 120000; // 2 minutes pause after manual click
 
 // ─── Market data — keyed by symbol ───────────────────────────────────────────
 // marketData.pairs['EURUSD'] = { barTime, qqe, trend, action, spread, ... }
@@ -778,10 +780,12 @@ canvas.addEventListener('click', e => {
   const clickX = (e.clientX - rect.left) * (CANVAS_WIDTH  / rect.width);
   const clickY = (e.clientY - rect.top)  * (CANVAS_HEIGHT / rect.height);
 
-  // TV screen click — cycle to next pair
+// TV screen click — cycle to next pair and pause auto-rotation
   if (clickX > TV_BEZEL_LEFT && clickX < TV_BEZEL_RIGHT && clickY > 20 && clickY < 150) {
     if (activePairs.length > 0) {
       tvPairIndex = (tvPairIndex + 1) % activePairs.length;
+      // Pause auto-rotation for 2 minutes after manual click
+      _tvLastManualClick = Date.now();
     }
     return;
   }
@@ -1116,7 +1120,15 @@ async function init() {
   setInterval(fetchJournalist,  300000);
   setInterval(fetchScout,       300000);
   setInterval(fetchMeta,        900000);       // refresh every 15 min — slower
-  setInterval(pollAnimations,   3000); 
+  setInterval(pollAnimations,   3000);
+  // Auto-rotate TV screen every 30 seconds
+  // Pauses for 2 minutes after manual click
+  setInterval(() => {
+    if (activePairs.length <= 1) return;
+    const timeSinceManual = Date.now() - _tvLastManualClick;
+    if (timeSinceManual < TV_MANUAL_PAUSE_MS) return;
+    tvPairIndex = (tvPairIndex + 1) % activePairs.length;
+  }, 30000);
 }
 
 init();

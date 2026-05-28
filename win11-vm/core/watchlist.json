@@ -6,7 +6,7 @@
       "magic":     100401,
       "active":    true,
       "lot_base":  0.01,
-      "comment":   "Main pair - Jim's DCA strategy"
+      "comment":   "Active EA pair"
     },
     {
       "symbol":    "AUDUSD",
@@ -14,7 +14,63 @@
       "magic":     100402,
       "active":    true,
       "lot_base":  0.01,
-      "comment":   "Second pair"
+      "comment":   "Active EA pair"
+    },
+    {
+      "symbol":    "GBPUSD",
+      "timeframe": "H4",
+      "magic":     0,
+      "active":    true,
+      "lot_base":  0.01,
+      "comment":   "Monitoring only — no EA"
+    },
+    {
+      "symbol":    "USDJPY",
+      "timeframe": "H4",
+      "magic":     0,
+      "active":    true,
+      "lot_base":  0.01,
+      "comment":   "Monitoring only — no EA"
+    },
+    {
+      "symbol":    "EURGBP",
+      "timeframe": "H4",
+      "magic":     0,
+      "active":    true,
+      "lot_base":  0.01,
+      "comment":   "Monitoring only — no EA"
+    },
+    {
+      "symbol":    "NZDUSD",
+      "timeframe": "H4",
+      "magic":     0,
+      "active":    true,
+      "lot_base":  0.01,
+      "comment":   "Monitoring only — no EA"
+    },
+    {
+      "symbol":    "USDCAD",
+      "timeframe": "H4",
+      "magic":     0,
+      "active":    true,
+      "lot_base":  0.01,
+      "comment":   "Monitoring only — no EA"
+    },
+    {
+      "symbol":    "GBPJPY",
+      "timeframe": "H4",
+      "magic":     0,
+      "active":    true,
+      "lot_base":  0.01,
+      "comment":   "Monitoring only — no EA"
+    },
+    {
+      "symbol":    "EURUSD",
+      "timeframe": "H1",
+      "magic":     0,
+      "active":    true,
+      "lot_base":  0.01,
+      "comment":   "Monitoring only — H1 timeframe comparison"
     }
   ],
   "settings": {
