@@ -256,50 +256,78 @@ Reads closed trade history from the VM and calculates rolling performance statis
 
 ### 10. Journalist (`journ`)
 
-**Status:** ⏳ Pending — requires closed sequence accumulation  
+**Status:** ✅ Active — triggers on sequence close  
+**Model:** `gemma4-e4b-8k`  
 **Sprite:** `journ`
 
-**Planned role:**  
-Writes plain-English post-mortems when a sequence closes. Records entry conditions, crew decisions, duration, and final result. Output stored for Meta-Supervisor review.
+**Role:**  
+Writes plain-English post-mortems when a sequence closes. Records entry conditions, duration, and final result. Narrative stored in `sequences` table for Meta-Supervisor review and displayed in agent overlay.
 
 **Trigger condition:**  
-Sequence close detection — when a magic number that had open positions now has none.
+Sequence close detection — when a magic number that had open positions now has none. Fires 15 seconds after close to allow mt5_bridge to write the deal.
 
 **Sample output:**
 ```
 AUDUSD BUY sequence closed — 2 trades, avg entry 0.71334,
 closed at 0.71685. Net P&L: +$13.99. Duration: 7 days.
-Risk Governor approved at 6/10. Strategy held 1 bar before entry.
 Result: WIN.
 ```
+
+**Note:** Gemma 4 thinking tokens are stripped from output automatically.
 
 ---
 
 ### 11. Backtest Scout (`scout`)
 
-**Status:** ⏳ Pending — requires historical pattern database  
+**Status:** ✅ Active — 500 bars seeded, confidence scoring live  
+**Model:** `qwen3-14b-8k`  
 **Sprite:** `scout`
 
-**Planned role:**  
-Compares current signal conditions against historical bar patterns to produce a confidence score. Answers: "How have similar setups performed historically?"
+**Role:**  
+Compares current signal conditions against historical bar patterns to produce a confidence score. Finds similar QQE range (±5) and trend direction bars from the last 500 bars and assesses signal consistency.
 
-**Dependencies:**
-- SQLite historical bar database (to be built)
-- Pattern matching algorithm (QQE level + MACD state + regime)
+**Data source:** `bars` table in `richfx.db` — seeded with 500 bars and backfilled signals on first run.
 
----
+**Output format:**
+```
+confidence,N
+[one sentence explanation]
+```
 
-### 12. Meta-Supervisor (`meta`)
+**Confidence scoring (current — no outcome data yet):**
+- Based on signal consistency across similar bars
+- QQE, trend, and MACD alignment
+- Sample size (more similar bars = more reliable)
 
-**Status:** ⏳ Pending — requires weeks of decision log accumulation  
+**Future:** Once sequences close and outcomes are tagged to bars, confidence will incorporate actual win rates from similar historical setups.
+
+**Sprite state mapping:**
+- confidence ≥ 7 → approved (cheer)
+- confidence 4-6 → idle
+- confidence 1-3 → anxious
+
+**Status:** ⏳ Accumulating — needs 10+ decisions (currently building)  
+**Model:** `qwen3-14b-8k`  
 **Sprite:** `meta`
 
-**Planned role:**  
+**Role:**  
 Reviews crew decisions across many bars and flags systematic patterns. Examples:
 - "Risk Governor has rejected 23 consecutive bars — is the spread threshold too tight?"
 - "Strategy Evaluator returns HOLD 95% of the time — is signal quality genuinely poor or is the scoring too conservative?"
 - "EURUSD sequences have a 40% win rate vs AUDUSD at 100% — consider pair weighting"
 
-**Dependencies:**
-- Decision log database (bar-by-bar crew output storage)
-- Minimum ~2 weeks of data for meaningful pattern detection
+**Data source:** `decisions` table in `richfx.db` — one row per `/analyse` call.
+
+**Output format:**
+```
+STATUS: OK | REVIEW | ALERT
+FINDINGS: [2-3 bullet points]
+RECOMMENDATION: [one action item]
+```
+
+**Activation threshold:** 10 decisions minimum (~2 days at 6 bars/day).
+
+**Sprite state mapping:**
+- STATUS OK → approved (cheer)
+- STATUS REVIEW → point
+- STATUS ALERT → anxious

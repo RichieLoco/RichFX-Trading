@@ -31,7 +31,7 @@ All machines connected via **Tailscale** mesh VPN.
 │  ubuntu-ai — Minisforum MS-S1 MAX (128GB)                       │
 │  ├── Ollama (LLM inference)                 :11434              │
 │  │     qwen3-14b-8k, deepseek-r1-14b-8k                         │
-│  │     qwen25-14b-8k  (~40GB loaded)                            │
+│  │     qwen25-14b-8k, gemma4-e4b-8k (~50GB loaded)              │
 │  ├── FastAPI Crew API                       :8000               │
 │  └── Trading Floor Dashboard               /ui/                 │
 ├─────────────────────────────────────────────────────────────────┤
@@ -133,7 +133,9 @@ MT5 EA (Win11 VM) — runs independently, manages trades
             ├── writes state_AUDUSD_H4.json
             ├── writes history.json (all closed deals)
             ├── seeds richfx.db bars table (500 bars + backfill)
-            └── appends new bar on each close
+            ├── appends new bar on each close
+            └── seeds bars for monitoring-only pairs (magic=0, no EA)
+                GBPUSD, USDJPY, EURGBP, NZDUSD, USDCAD, GBPJPY, EURUSD H1
 
 n8n (NAS) — sole trigger for analysis, fires on H4 bar schedule
     │
@@ -210,6 +212,7 @@ TELEGRAM_CHAT_ID=your_chat_id
 **Features:**
 - 12 pixel-art agents with walk/stand/action/cheer/cry/anxious animations
 - TV screen: QQE, sequence P&L, open P&L, closed P&L, equity, margin
+- TV screen auto-rotates across active pairs every 30 seconds (pauses on manual click)
 - UTC analogue clock, market open/closed indicator
 - Weather system (sun/cloud/rain), night overlay (UTC-aware)
 - Agent overlay panels with LLM summary and full output

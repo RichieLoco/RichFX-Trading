@@ -4,9 +4,10 @@
 
 ## Current Status
 
-**Version:** Phase 2 (Advisory Agents)  
-**Active agents:** 9 of 12  
-**EA status:** Demo account, monitoring EURUSD H4 and AUDUSD H4
+**Version:** Phase 2 (Advisory Agents — all implemented)  
+**Active agents:** 11 of 12 (Meta accumulating decisions)  
+**EA status:** Demo account, monitoring EURUSD H4 and AUDUSD H4  
+**Monitoring pairs:** 7 additional pairs seeding bar data (no EA)
 
 ---
 
@@ -29,32 +30,37 @@
 - [x] Session Monitor (`sess`) — pure Python session quality check
 - [x] Drawdown Monitor (`dd`) — equity drawdown thresholds
 - [x] Correlation Agent (`corr`) — cross-pair USD exposure detection
-- [x] News Watch (`news`) — ForexFactory economic calendar
+- [x] News Watch (`news`) — ForexFactory economic calendar (1hr cache)
 - [x] Performance Analyst (`perf`) — closed trade history stats
 - [x] Strategy Evaluator (`strat`) — signal quality gate in LLM chain
+- [x] Backtest Scout (`scout`) — 500 bars seeded, pattern confidence scoring
+- [x] Journalist (`journ`) — gemma4-e4b-8k, triggers on sequence close, thinking tokens stripped
+- [x] Meta-Supervisor (`meta`) — accumulating decisions, activates at 10+
 
 ### Infrastructure
 - [x] FastAPI serving UI and sprites (eliminates file:// CORS)
 - [x] `/last-analysis` cache — dashboard never triggers `/analyse`
-- [x] `vm_health.py` HTTP server with `/history` endpoint
-- [x] `mt5_bridge.py` writing `history.json` on each bar
+- [x] Analysis cache persisted to disk — agents active instantly after restart
+- [x] `vm_health.py` HTTP server with `/history`, `/bars`, `/decisions`, `/sequences` endpoints
+- [x] `mt5_bridge.py` writing `history.json` and `richfx.db` on each bar
+- [x] Centralised SQLite DB (`richfx.db`) — bars, decisions, sequences tables
+- [x] 500 bars seeded with backfilled QQE/MACD signals
+- [x] 7 monitoring-only pairs seeding bar data (GBPUSD, USDJPY, EURGBP, NZDUSD, USDCAD, GBPJPY, EURUSD H1)
 - [x] Cloudflare tunnel at `crew.richielo.co`
 - [x] Cloudflare Access email whitelist authentication
 - [x] `window.location.origin` API base — Tailscale compatible
 - [x] Ollama `KEEP_ALIVE=60m` — models pre-warmed in memory
-
----
-
-## In Progress
-
-### Journalist Agent (`journ`)
-- [ ] Sequence close detection (compare positions bar-over-bar)
-- [ ] Post-mortem template generation
-- [ ] Telegram delivery of sequence summaries
-- [ ] Storage in decision log for Meta-Supervisor
-
-**Trigger:** When a magic number that had open positions closes all of them  
-**Blocked by:** Need a few more completed sequences
+- [x] Gemma 4 e4b pulled and assigned to Journalist
+- [x] Decision logging to DB after every `/analyse`
+- [x] Sequence close detection and Journalist trigger
+- [x] Favicon (RichieLoco logo)
+- [x] `white-space: pre-wrap` on overlay output divs
+- [x] Closed P&L on TV screen row 2
+- [x] TV screen auto-rotates pairs every 30s (pauses on manual click)
+- [x] Alt gesture animation for female agents
+- [x] WinSW services for VM processes (mt5_bridge, vm_health, telegram_alerter)
+- [x] n8n NAS health monitor workflow with Telegram alerts
+- [x] GitHub repo at https://github.com/RichieLoco/RichFX
 
 ---
 
@@ -62,47 +68,40 @@
 
 ### Near Term
 
-#### VM Process Management
-- [ ] Convert `mt5_bridge.py` to WinSW service
-- [ ] Convert `vm_health.py` to WinSW service
-- [ ] Convert `telegram_alerter.py` to WinSW service
-- [ ] Auto-restart on failure, survive VM reboots
+#### Horizon Agent (Pair Expansion Analyst)
+- [ ] Analyse signal quality across all monitoring pairs in bars DB
+- [ ] Identify pairs where QQE/MACD signals are most consistent
+- [ ] Recommend which pairs to promote to full EA trading
+- [ ] Run weekly via n8n
+- [ ] Model: gemma4-26b-8k (when pulled)
 
-#### Closed P&L on TV Screen
-- [ ] Add `closed_pnl` cell to TV screen row 2
-- [ ] Populate from `/performance` endpoint
-- [ ] Green/red colour coding
+#### Dynamic Dusk/Dawn
+- [ ] Replace hardcoded UTC hour checks with SunCalc algorithm
+- [ ] 1.5-hour transition windows either side of actual sunrise/sunset
+- [ ] Location-configurable (default: London)
 
-#### Performance Agent LLM Narrative
-- [ ] `POST /performance/analyse` endpoint
-- [ ] Daily Telegram performance summary via n8n
-- [ ] `run_performance_analysis()` in `richfx_crew.py`
-
-#### Multi-pair Analysis
-- [ ] `/analyse` running for each active pair (currently first pair only)
+#### Multi-pair Crew Analysis
+- [ ] `/analyse` running for each active pair independently
 - [ ] Agent states keyed by pair, not global
-- [ ] TV screen agent overlay showing per-pair crew decisions
+- [ ] TV screen overlay showing per-pair crew decisions
 
 ---
 
 ### Medium Term
 
-#### Backtest Scout (`scout`)
-- [ ] SQLite historical bar database schema design
-- [ ] Historical data ingestion from MT5
-- [ ] Pattern matching: QQE level + MACD state + regime
-- [ ] Confidence score integration into crew chain
+#### Scout Outcome Tagging
+- [ ] Link closed sequences to historical bar patterns
+- [ ] Confidence scoring incorporates actual win rates
+- [ ] Scout becomes statistically meaningful rather than signal-consistency only
 
-#### Journalist Agent (`journ`)
-- [ ] Sequence post-mortem LLM narrative
-- [ ] `journ` sprite activation on sequence close
-- [ ] Weekly digest Telegram message
+#### Journalist Weekly Digest
+- [ ] Batch weekly sequence narratives
+- [ ] n8n workflow triggers weekly summary via Telegram
+- [ ] Ad-hoc: `GET /journalist?last=5` already available
 
 #### Dashboard Enhancements
-- [ ] Favicon (eliminates 404 in logs)
-- [ ] `white-space: pre-wrap` on all overlay FULL OUTPUT divs
-- [ ] Closed P&L cell populated from performance endpoint
-- [ ] Agent state persistence across service restarts (Redis or SQLite)
+- [ ] Dynamic dusk/dawn using SunCalc (location-aware)
+- [ ] Agent gesture animations in zoomed overlay mode for all gestures
 
 ---
 
@@ -138,11 +137,10 @@
 
 | Issue | Severity | Notes |
 |-------|----------|-------|
-| VM processes not WinSW services | Medium | Will not survive VM reboot |
-| `_last_analysis` cache lost on restart | Low | Repopulated on next n8n bar trigger |
 | Post-quantum SSH warning on VM connections | Cosmetic | Server needs OpenSSH upgrade |
+| Scout outcome data missing | Low | Sequences need to close before win rates are meaningful |
+| Meta needs 10+ decisions | Low | Accumulating — activates automatically |
 | `write_history` only called on new bar | Low | Single-run mode doesn't write history |
-| No favicon served | Cosmetic | 404 in logs, harmless |
 
 ---
 

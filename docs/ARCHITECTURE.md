@@ -25,6 +25,7 @@ The primary compute node. Runs all LLM inference and the FastAPI server.
 - `qwen3-14b-8k` — Regime Analyst + Strategy Evaluator
 - `deepseek-r1-14b-8k` — Risk Governor
 - `qwen25-14b-8k` — Execution Coordinator
+- `gemma4-e4b-8k` — Journalist (narrative generation)
 
 All models configured with 8192 token context window and 60-minute keepalive to remain resident in the 128GB unified RAM pool.
 

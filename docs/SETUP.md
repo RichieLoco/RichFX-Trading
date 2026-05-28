@@ -54,7 +54,7 @@ sudo systemctl restart ollama
 ollama pull qwen3:14b
 ollama pull deepseek-r1:14b
 ollama pull qwen2.5:14b
-ollama pull qwen3-14b-nothink  # if available, or use qwen3:14b
+ollama pull gemma4:e4b
 
 # Create 8k context versions
 cat > /tmp/qwen3_modelfile.txt << 'EOF'
@@ -74,6 +74,13 @@ FROM qwen2.5:14b
 PARAMETER num_ctx 8192
 EOF
 ollama create qwen25-14b-8k -f /tmp/qwen25_modelfile.txt
+
+cat > /tmp/gemma4_modelfile.txt << 'EOF'
+FROM gemma4:e4b
+PARAMETER num_ctx 8192
+SYSTEM "You are a concise trading journalist. Respond directly without showing your reasoning process."
+EOF
+ollama create gemma4-e4b-8k -f /tmp/gemma4_modelfile.txt
 ```
 
 Verify models are available:
@@ -442,9 +449,10 @@ curl -I https://crew.richielo.co/ui/richfx_trading_floor.html
 - Wait for the current run to complete before retrying
 
 ### Agents greyed out after service restart
-- Expected — `_last_analysis` cache is in-memory
-- Wait for next n8n bar trigger to repopulate
+- The analysis cache is persisted to disk — agents should light up within seconds
+- If cache file missing (`data/last_analysis_cache.json`), wait for next n8n bar trigger
 - Or manually trigger: `curl -X POST http://localhost:8000/analyse ...`
+- Check journal: `sudo journalctl -u richfx-api -n 5 | grep Cache`
 
 ### VM health 503
 - Check MT5 bridge is running: `tasklist | findstr python` (from SSH)
