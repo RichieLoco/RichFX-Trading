@@ -1,6 +1,6 @@
 # RichFX Trading Floor
 
-An AI-powered algorithmic trading monitoring system built around a 12-agent CrewAI crew, a live MT5 bridge, and a pixel-art trading floor dashboard. Agents analyse H4 signals in a sequential chain, advisory agents monitor risk conditions, and a centralised SQLite database accumulates decision history for pattern analysis.
+An AI-powered algorithmic trading monitoring system built around a 13-agent CrewAI crew, a live MT5 bridge, and a pixel-art trading floor dashboard. Agents analyse H4 signals in a sequential chain, advisory agents monitor risk conditions, and a centralised SQLite database accumulates decision history for pattern analysis.
 
 > 🔴 **Live demo:** [crew.richielo.co](https://crew.richielo.co) *(Cloudflare Access — request access via the repo)*
 
@@ -31,7 +31,8 @@ All machines connected via **Tailscale** mesh VPN.
 │  ubuntu-ai — Minisforum MS-S1 MAX (128GB)                       │
 │  ├── Ollama (LLM inference)                 :11434              │
 │  │     qwen3-14b-8k, deepseek-r1-14b-8k                         │
-│  │     qwen25-14b-8k, gemma4-e4b-8k (~50GB loaded)              │
+│  │     qwen25-14b-8k, gemma4-e4b-8k                             │
+│  │     gemma4-26b-8k  (~60GB loaded)                            │
 │  ├── FastAPI Crew API                       :8000               │
 │  └── Trading Floor Dashboard               /ui/                 │
 ├─────────────────────────────────────────────────────────────────┤
@@ -53,7 +54,7 @@ All machines connected via **Tailscale** mesh VPN.
 
 ## Agent Roster
 
-The trading floor has 12 agents across two phases:
+The trading floor has 13 agents across two phases:
 
 ### Phase 1 — Core LLM Chain (runs every H4 bar)
 
@@ -75,7 +76,8 @@ The trading floor has 12 agents across two phases:
 | **Performance** | Tracks win rate and P&L from closed trade history | ✅ Active |
 | **Backtest Scout** | Compares signals to 500-bar historical pattern database | ✅ Active |
 | **Journalist** | Plain-English post-mortems on completed sequences | ✅ Active |
-| **Meta-Supervisor** | Reviews crew decisions for systematic bias (needs 10+ bars) | ⏳ Accumulating |
+| **Meta-Supervisor** | Reviews crew decisions for systematic bias (needs 10+ bars) | ✅ Active |
+| **Horizon** | Cross-pair signal quality analyst — recommends pair expansion | ✅ Active |
 
 ---
 
@@ -96,6 +98,12 @@ The trading floor has 12 agents across two phases:
 | <sub>News Watch</sub> | <sub>Journalist</sub> | <sub>Bktest Scout</sub> | <sub>Meta-Super</sub> |
 |:---:|:---:|:---:|:---:|
 | ![](sprites/characters/news_stand_south.gif) | ![](sprites/characters/journ_stand_south.gif) | ![](sprites/characters/scout_stand_south.gif) | ![](sprites/characters/meta_stand_south.gif) |
+
+| <sub>Horizon</sub> | | | |
+|:---:|:---:|:---:|:---:|
+| ![](sprites/characters/hori_stand_south.gif) | | | |
+
+> **Horizon** — The newest agent. A female analyst who scans signal quality across all monitored currency pairs and recommends which ones are ready to promote to full EA trading. Powered by `gemma4-26b-8k`.
 
 ---
 
@@ -120,6 +128,9 @@ All served by FastAPI on port 8000.
 | `/meta` | GET | Run Meta-Supervisor analysis |
 | `/animate` | POST | Queue alt gesture for a female agent |
 | `/pending-animation` | GET | Dashboard polls for queued animations |
+| `/horizon` | GET | Run Horizon cross-pair analysis (slow — use n8n weekly) |
+| `/horizon/last` | GET | Most recent cached Horizon result (instant) |
+| `/bars/symbols` | GET | All symbol/timeframe pairs in the bars DB |
 
 ---
 
@@ -154,6 +165,7 @@ Dashboard (browser) — read-only, never triggers /analyse
     ├── GET /performance     (closed trade stats)
     ├── GET /scout           (pattern confidence score)
     ├── GET /journalist      (sequence narratives)
+    ├── GET /horizon/last    (pair expansion recommendations)
     └── GET /pending-animation (alt gesture queue, polls 3s)
 ```
 
@@ -210,11 +222,12 @@ TELEGRAM_CHAT_ID=your_chat_id
 - Public: `https://crew.richielo.co` *(Cloudflare Access — email OTP)*
 
 **Features:**
-- 12 pixel-art agents with walk/stand/action/cheer/cry/anxious animations
+- 13 pixel-art agents with walk/stand/action/cheer/cry/anxious animations
 - TV screen: QQE, sequence P&L, open P&L, closed P&L, equity, margin
 - TV screen auto-rotates across active pairs every 30 seconds (pauses on manual click)
 - UTC analogue clock, market open/closed indicator
-- Weather system (sun/cloud/rain), night overlay (UTC-aware)
+- Dynamic dusk/dawn using SunCalc.js — accurate sunrise/sunset for your location
+- Weather system (sun/cloud/rain), night overlay
 - Agent overlay panels with LLM summary and full output
 - Alt gesture animation — female agents zoom from bottom on request
 - Analysis cache persisted to disk — agents active instantly after restart
@@ -232,6 +245,7 @@ Each agent requires these animation files:
 {agent}_walk_south/north/east/west.gif
 {agent}_cheer.gif   {agent}_cry.gif
 {agent}_point.gif   {agent}_anxious.gif
+{agent}_alt.gif     (female agents only — zoom gesture)
 ```
 
 ---

@@ -399,6 +399,86 @@ def run_scout_analysis(current_signal: dict, similar_bars: list) -> str:
                       process=Process.sequential, verbose=False).kickoff()
     return getattr(result_obj, "raw", str(result_obj)).strip()
 
+# ─── Horizon Agent ────────────────────────────────────────────────────────────
+llm_horizon = LLM(model="ollama/gemma4-26b-8k", base_url=OLLAMA_URL, temperature=0.2)
+
+def create_horizon_agent():
+    return Agent(
+        role="Horizon Analyst",
+        goal=(
+            "Analyse signal quality across multiple forex pairs and timeframes. "
+            "Identify which pairs show the most consistent, tradeable signals. "
+            "Recommend which monitoring pairs are worth promoting to full EA trading."
+        ),
+        backstory=(
+            "Quantitative analyst specialising in cross-market opportunity identification. "
+            "Evaluates signal consistency, trend clarity, and QQE behaviour across pairs. "
+            "Knows that consistent, decisive signals matter more than occasional spikes. "
+            "Conservative — only recommends promotion when evidence is strong. "
+            "Always contextualises recommendations with sample size caveats."
+        ),
+        llm=llm_horizon, verbose=False, allow_delegation=False,
+    )
+
+
+def run_horizon_analysis(pair_data: dict, active_pairs: list) -> str:
+    """
+    Analyse signal quality across monitoring pairs and recommend expansion candidates.
+    pair_data: dict of {symbol: {bar_count, avg_qqe, qqe_range, trend_consistency, decisive_pct}}
+    active_pairs: list of currently active EA pairs
+    """
+    if not pair_data:
+        return "HORIZON: Insufficient data — monitoring pairs still seeding."
+
+    agent = create_horizon_agent()
+
+    ctx = (
+        f"Currently active EA pairs: {', '.join(active_pairs)}\n\n"
+        f"Monitoring pair signal analysis ({list(pair_data.values())[0]['timeframe']}):\n\n"
+    )
+
+    for sym, d in pair_data.items():
+        status = "ACTIVE" if d["is_active"] else "monitoring"
+        ctx += (
+            f"  {sym} [{status}]\n"
+            f"    Bars analysed:      {d['bar_count']}\n"
+            f"    Avg QQE:            {d['avg_qqe']} (50 = neutral)\n"
+            f"    QQE range:          {d['qqe_range']} (higher = more volatile signals)\n"
+            f"    Trend consistency:  {d['trend_consistency']}% (% bars with clear direction)\n"
+            f"    Decisive signals:   {d['decisive_pct']}% (QQE clearly above 55 or below 45)\n\n"
+        )
+
+    task = Task(
+        description=(
+            f"Analyse this cross-pair signal quality data and provide expansion recommendations:\n\n{ctx}\n\n"
+            "The trading system uses a DCA mean-reversion strategy on H4 bars.\n"
+            "Best candidates have: high trend consistency, high decisive signal %, "
+            "moderate QQE range (not too chaotic), sufficient bar history.\n\n"
+            "Output format (plain text, no markdown):\n"
+            "SUMMARY: one sentence overview\n\n"
+            "RANKINGS: list each pair with a score 1-10 and one reason\n\n"
+            "PROMOTE: list any pairs ready for EA trading (or 'None yet')\n\n"
+            "MONITOR: list pairs to keep watching\n\n"
+            "CAUTION: list any pairs to avoid and why\n\n"
+            "NOTE: always mention sample size — more bars = more reliable assessment.\n"
+            "No preamble. Plain text only."
+        ),
+        expected_output="SUMMARY, RANKINGS, PROMOTE, MONITOR, CAUTION sections in plain text.",
+        agent=agent,
+    )
+
+    from crewai import Crew, Process
+    result_obj = Crew(
+        agents=[agent], tasks=[task],
+        process=Process.sequential, verbose=False
+    ).kickoff()
+
+    raw = getattr(result_obj, "raw", str(result_obj)).strip()
+    # Strip Gemma 4 thinking tokens
+    raw = re.sub(r"Thinking\.\.\..*?\.\.\.done thinking\.", "", raw, flags=re.DOTALL).strip()
+    raw = re.sub(r"Thinking Process:.*?(?=SUMMARY|$)", "", raw, flags=re.DOTALL).strip()
+    return raw
+
 # ─── Meta-Supervisor Agent ────────────────────────────────────────────────────
 llm_meta = LLM(model="ollama/qwen3-14b-8k", base_url=OLLAMA_URL, temperature=0.2)
 

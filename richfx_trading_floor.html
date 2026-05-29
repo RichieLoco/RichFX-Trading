@@ -119,7 +119,7 @@ const ctx    = canvas.getContext('2d');
 const CANVAS_WIDTH  = 1280;
 const CANVAS_HEIGHT = 400;
 const WALL_HEIGHT   = 162;
-const SLOT_WIDTH    = CANVAS_WIDTH / 11;
+const SLOT_WIDTH    = CANVAS_WIDTH / 13;
 const AGENT_Y       = 258;
 const SPRITE_SIZE   = 130;
 
@@ -248,6 +248,7 @@ const AGENTS = [
   { key:'journ',  label:'JOURNALIST',     phase:2, sprite:'journ'  },
   { key:'scout',  label:'BKTEST SCOUT',   phase:2, sprite:'scout'  },
   { key:'meta',   label:'META-SUPER',     phase:2, sprite:'meta'   },
+  { key:'hori',   label:'HORIZON',        phase:2, sprite:'hori'   },
 ];
 
 const agentState = {};
@@ -371,11 +372,13 @@ function getSkyState() {
   const { sunrise, sunset } = getSunTimes();
   const now = Date.now();
 
-  if (now < sunrise - SUN_BUFFER_MS)   return 'night';
-  if (now < sunrise + SUN_BUFFER_MS)   return 'dawn';   // 60 min before → 60 min after sunrise
-  if (now < sunset  - SUN_BUFFER_MS)   return 'day';
-  if (now < sunset  + SUN_BUFFER_MS)   return 'dusk';   // 60 min before → 60 min after sunset
-  return 'night';
+  if (now < sunrise - SUN_BUFFER_MS)               return 'night';  // before dawn
+  if (now < sunrise + SUN_BUFFER_MS)               return 'dawn';   // around sunrise
+  if (now >= sunrise + SUN_BUFFER_MS 
+   && now < sunset - SUN_BUFFER_MS)                return 'day';    // daytime
+  if (now >= sunset - SUN_BUFFER_MS 
+   && now < sunset + SUN_BUFFER_MS)                return 'dusk';   // around sunset
+  return 'night';                                                    // after dusk
 }
 
 // ─── Draw functions ───────────────────────────────────────────────────────────
@@ -770,6 +773,7 @@ const PHASE2_DESCRIPTIONS = {
   journ: 'Plain-English summaries of each completed sequence.',
   scout: 'Compares signals against historical patterns with confidence scores.',
   meta:  'Reviews crew decisions across bars. Flags systematic avoidance patterns.',
+  hori:  'Analyses signal quality across all monitored pairs. Recommends which pairs to promote to EA trading.',
 };
 
 function openAgentOverlay(i) {
@@ -894,6 +898,23 @@ async function fetchPerformance() {
     };
     applyAgentVisuals('perf');
 
+  } catch(_) {}
+}
+
+async function fetchHorizon() {
+  try {
+    const res  = await fetch(`${API_BASE}/horizon/last`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.status === 'PENDING') return;
+    agentState.hori = {
+      status:    data.status === 'OPPORTUNITY' ? 'approved'
+               : data.status === 'CAUTION'     ? 'anxious'
+               : 'idle',
+      summary:   data.summary || 'Analysing monitoring pairs...',
+      rawOutput: data.narrative || 'No analysis yet.',
+    };
+    applyAgentVisuals('hori');
   } catch(_) {}
 }
 
@@ -1145,6 +1166,8 @@ async function init() {
   await fetchJournalist();
   await fetchScout();
   await fetchMeta();
+  setTimeout(fetchHorizon, 2000);
+  setInterval(fetchHorizon, 1800000);  // every 30 minutes — slow poll
   setInterval(fetchLiveData, 300000); // refresh every 5 minutes
   setInterval(fetchPerformance, 300000);
   setInterval(fetchJournalist,  300000);

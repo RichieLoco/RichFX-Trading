@@ -97,7 +97,22 @@ class HealthHandler(BaseHTTPRequestHandler):
                 })
             except Exception as e:
                 self._respond(500, {"error": str(e)})
-
+        elif parsed.path == "/bars/symbols":
+            try:
+                conn = sqlite3.connect(DB_PATH)
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute("""
+                    SELECT DISTINCT symbol, timeframe, COUNT(*) as bar_count
+                    FROM bars
+                    GROUP BY symbol, timeframe
+                    ORDER BY symbol, timeframe
+                """).fetchall()
+                conn.close()
+                self._respond(200, {
+                    "pairs": [dict(r) for r in rows]
+                })
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
         elif parsed.path == "/decisions":
             params = parse_qs(parsed.query)
             symbol = params.get("symbol",    ["EURUSD"])[0]

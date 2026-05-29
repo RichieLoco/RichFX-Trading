@@ -51,17 +51,18 @@ ACCOUNT_IS_DEMO_DEFAULT = True
 # Cache for last crew analysis result — keyed by symbol
 _last_analysis: dict = {}
 
+_last_horizon: dict = {}
+
 _prev_positions: dict = {}  # {symbol_magic: set of ticket IDs} for sequence close detection
 
 _calendar_cache: dict = {"data": None, "fetched_at": 0}
 
 _animation_queue: list = []
-FEMALE_AGENTS = {"exec", "corr", "perf", "journ", "meta", "news"}
+FEMALE_AGENTS = {"exec", "corr", "perf", "journ", "meta", "news", "hori"}
 
 _calendar_cache: dict = {"data": None, "fetched_at": 0}
 
 _animation_queue: list = []
-FEMALE_AGENTS = {"exec", "corr", "perf", "journ", "meta", "news"}
 
 # ── Analysis cache persistence ────────────────────────────────────────────────
 CACHE_FILE = os.path.join(BASE_DIR, "data", "last_analysis_cache.json")
@@ -85,6 +86,27 @@ def load_analysis_cache():
             print(f"[Cache] Loaded {len(_last_analysis)} symbols from disk", flush=True)
     except Exception as e:
         print(f"[Cache] Load failed: {e}", flush=True)
+
+
+# ── Horizon cache persistence ────────────────────────────────────────────────
+HORIZON_CACHE_FILE = os.path.join(BASE_DIR, "data", "last_horizon_cache.json")
+
+def save_horizon_cache():
+    try:
+        with open(HORIZON_CACHE_FILE, "w") as f:
+            json.dump(_last_horizon, f, default=str)
+    except Exception as e:
+        print(f"[Horizon] Cache save failed: {e}", flush=True)
+
+def load_horizon_cache():
+    global _last_horizon
+    try:
+        if os.path.exists(HORIZON_CACHE_FILE):
+            with open(HORIZON_CACHE_FILE) as f:
+                _last_horizon = json.load(f)
+            print(f"[Horizon] Cache loaded from disk", flush=True)
+    except Exception as e:
+        print(f"[Horizon] Cache load failed: {e}", flush=True)
 
 # ---------------------------------------------------------------------------
 # App
@@ -935,6 +957,147 @@ async def run_meta(symbol: str = "EURUSD", timeframe: str = "H4",
         "narrative":       narrative,
     }
 
+@app.get("/bars/symbols")
+async def get_bars_symbols():
+    """Return all symbol/timeframe pairs available in the bars DB."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(f"{VM_HEALTH_URL}/bars/symbols")
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"VM bars/symbols unavailable: {e}")
+
+@app.get("/horizon")
+async def run_horizon(timeframe: str = "H4"):
+    """
+    Run Horizon agent — analyses signal quality across all monitoring pairs
+    and recommends which pairs are worth promoting to full EA trading.
+    Requires bars data for monitoring pairs in richfx.db.
+    """
+    loop = asyncio.get_running_loop()
+
+    import httpx
+    import re
+
+    # Get all pairs that have bars — both active and monitoring
+    symbols    = load_symbols_config()
+    active_sym = {s["symbol"] for s in symbols}
+
+    # Discover all pairs in the bars DB dynamically — no hardcoding
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Get all unique symbol/timeframe combinations from bars table
+            resp = await client.get(
+                f"{VM_HEALTH_URL}/bars/symbols",
+            )
+            all_pairs = resp.json().get("pairs", [])
+    except Exception:
+        # Fallback — use active symbols from config
+        all_pairs = [
+            {"symbol": s["symbol"], "timeframe": s.get("timeframe", "H4")}
+            for s in symbols
+        ]
+
+    pair_data = {}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for pair in all_pairs:
+            sym = pair["symbol"]
+            pair_tf = pair.get("timeframe", timeframe)
+            if pair_tf != timeframe:
+                continue
+            try:
+                resp = await client.get(
+                    f"{VM_HEALTH_URL}/bars",
+                    params={"symbol": sym, "timeframe": timeframe, "limit": 500},
+                )
+                bars = resp.json().get("bars", [])
+                if len(bars) < 10:
+                    continue
+
+                # Calculate signal stats from bars with QQE data
+                signal_bars = [b for b in bars if b.get("qqe") is not None]
+                if len(signal_bars) < 5:
+                    continue
+
+                qqe_vals   = [b["qqe"] for b in signal_bars]
+                trend_vals = [b["qmp_trend"] for b in signal_bars if b.get("qmp_trend") is not None]
+                macd_vals  = [b["macd"] for b in signal_bars if b.get("macd") is not None]
+
+                # Signal consistency metrics
+                avg_qqe      = round(sum(qqe_vals) / len(qqe_vals), 2)
+                qqe_range    = round(max(qqe_vals) - min(qqe_vals), 2)
+                trend_consistency = round(
+                    max(trend_vals.count(1), trend_vals.count(-1)) / len(trend_vals) * 100
+                    if trend_vals else 0, 1
+                )
+                # How often QQE is decisively above or below 50 (not hovering)
+                decisive = sum(1 for q in qqe_vals if q > 55 or q < 45)
+                decisive_pct = round(decisive / len(qqe_vals) * 100, 1)
+
+                pair_data[sym] = {
+                    "symbol":             sym,
+                    "timeframe":          timeframe,
+                    "bar_count":          len(signal_bars),
+                    "avg_qqe":            avg_qqe,
+                    "qqe_range":          qqe_range,
+                    "trend_consistency":  trend_consistency,
+                    "decisive_pct":       decisive_pct,
+                    "is_active":          sym in active_sym,
+                }
+            except Exception:
+                continue
+
+    if not pair_data:
+        return {
+            "status":    "PENDING",
+            "summary":   "Insufficient bar data — monitoring pairs still seeding.",
+            "narrative": "",
+            "pairs":     {},
+        }
+
+    # Run Horizon LLM analysis
+    try:
+        from richfx_crew import run_horizon_analysis
+        narrative = await loop.run_in_executor(
+            None, run_horizon_analysis, pair_data, list(active_sym)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Horizon analysis failed: {e}")
+
+    # Parse recommendation
+    status = "MONITORING"
+    if "PROMOTE" in narrative.upper():
+        status = "OPPORTUNITY"
+    elif "CAUTION" in narrative.upper() or "AVOID" in narrative.upper():
+        status = "CAUTION"
+
+    summary_line = narrative.split('\n')[0] if narrative else ""
+
+    _last_horizon["result"] = {
+        "status":       status,
+        "summary":      summary_line,
+        "narrative":    narrative,
+        "pairs":        pair_data,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    save_horizon_cache()
+    return _last_horizon["result"]
+
+@app.get("/horizon/last")
+async def get_last_horizon():
+    """Return cached Horizon analysis — instant, no LLM."""
+    if not _last_horizon:
+        return {
+            "status":    "PENDING",
+            "summary":   "No Horizon analysis run yet.",
+            "narrative": "",
+            "pairs":     {},
+        }
+    return _last_horizon["result"]
+
 @app.get("/state")
 async def get_state(symbol: str = "EURUSD", timeframe: str = "H4"):
     """
@@ -955,6 +1118,7 @@ async def get_state(symbol: str = "EURUSD", timeframe: str = "H4"):
 @app.on_event("startup")
 async def startup():
     load_analysis_cache()
+    load_horizon_cache()
     print(f"[Startup] Cache loaded: {list(_last_analysis.keys())}")
 
 @app.post("/analyse", response_model=AnalyseResponse)
