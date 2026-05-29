@@ -16,11 +16,14 @@ OLLAMA_URL       = "http://localhost:11434"
 POLL_INTERVAL    = 30
 POLL_INTERVAL = 30
 
-llm_regime   = LLM(model="ollama/qwen3-14b-8k",       base_url=OLLAMA_URL, temperature=0.1)
-llm_risk     = LLM(model="ollama/deepseek-r1-14b-8k", base_url=OLLAMA_URL, temperature=0.1)
-llm_executor = LLM(model="ollama/qwen25-14b-8k",      base_url=OLLAMA_URL, temperature=0.1)
-llm_strategy = LLM(model="ollama/qwen3-14b-8k", base_url=OLLAMA_URL, temperature=0.1)
-llm_perf     = LLM(model="ollama/qwen3-14b-8k", base_url=OLLAMA_URL, temperature=0.2)
+llm_regime     = LLM(model="ollama/qwen3-14b-8k",       base_url=OLLAMA_URL, temperature=0.1)
+llm_risk       = LLM(model="ollama/deepseek-r1-14b-8k", base_url=OLLAMA_URL, temperature=0.1)
+llm_executor   = LLM(model="ollama/qwen25-14b-8k",      base_url=OLLAMA_URL, temperature=0.1)
+llm_strategy   = LLM(model="ollama/qwen3-14b-8k",       base_url=OLLAMA_URL, temperature=0.1)
+llm_perf       = LLM(model="ollama/qwen3-14b-8k",       base_url=OLLAMA_URL, temperature=0.2)
+llm_scout      = LLM(model="ollama/qwen3-14b-8k",       base_url=OLLAMA_URL, temperature=0.1)
+llm_journalist = LLM(model="ollama/gemma4-e4b-8k",      base_url=OLLAMA_URL, temperature=0.3)
+llm_horizon    = LLM(model="ollama/gemma4-e4b-8k",      base_url=OLLAMA_URL, temperature=0.2)
 
 
 def fetch_state():
@@ -275,7 +278,6 @@ def run_performance_analysis(perf_data: dict) -> str:
     return getattr(result, "raw", str(result))
 
 # ─── Journalist Agent ─────────────────────────────────────────────────────────
-llm_journalist = LLM(model="ollama/gemma4-e4b-8k", base_url=OLLAMA_URL, temperature=0.3)
 
 def create_journalist_agent():
     return Agent(
@@ -335,7 +337,6 @@ def run_journalist_narrative(sequence: dict) -> str:
 
 
 # ─── Backtest Scout Agent ─────────────────────────────────────────────────────
-llm_scout = LLM(model="ollama/qwen3-14b-8k", base_url=OLLAMA_URL, temperature=0.1)
 
 def create_scout_agent():
     return Agent(
@@ -400,8 +401,6 @@ def run_scout_analysis(current_signal: dict, similar_bars: list) -> str:
     return getattr(result_obj, "raw", str(result_obj)).strip()
 
 # ─── Horizon Agent ────────────────────────────────────────────────────────────
-llm_horizon = LLM(model="ollama/gemma4-26b-8k", base_url=OLLAMA_URL, temperature=0.2)
-
 def create_horizon_agent():
     return Agent(
         role="Horizon Analyst",

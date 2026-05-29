@@ -128,7 +128,7 @@ All served by FastAPI on port 8000.
 | `/meta` | GET | Run Meta-Supervisor analysis |
 | `/animate` | POST | Queue alt gesture for a female agent |
 | `/pending-animation` | GET | Dashboard polls for queued animations |
-| `/horizon` | GET | Run Horizon cross-pair analysis (slow — use n8n weekly) |
+| `/horizon` | GET | Run Horizon cross-pair analysis (~30s, runs every H4 bar via n8n) |
 | `/horizon/last` | GET | Most recent cached Horizon result (instant) |
 | `/bars/symbols` | GET | All symbol/timeframe pairs in the bars DB |
 
@@ -165,7 +165,7 @@ Dashboard (browser) — read-only, never triggers /analyse
     ├── GET /performance     (closed trade stats)
     ├── GET /scout           (pattern confidence score)
     ├── GET /journalist      (sequence narratives)
-    ├── GET /horizon/last    (pair expansion recommendations)
+    ├── GET /horizon/last    (pair expansion recommendations, cached — n8n refreshes every H4 bar)
     └── GET /pending-animation (alt gesture queue, polls 3s)
 ```
 
