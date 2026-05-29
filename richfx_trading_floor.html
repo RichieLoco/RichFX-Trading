@@ -479,12 +479,11 @@ function drawTVScreen() {
   );
 
   // Bar time + countdown — right-aligned, stacked
-  ctx.fillStyle='#8ab4cc'; ctx.font='9px Courier New'; ctx.textAlign='right';
+  ctx.fillStyle='#ffffff'; ctx.font='11.5px Courier New'; ctx.textAlign='right';
   ctx.fillText('bar: ' + (pd.barTime || '--'), left+width-6, top+9);
-  ctx.fillStyle='#ffaa44';
+  ctx.fillStyle='#00ee77';
   ctx.fillText('close: ' + getH4Countdown(), left+width-6, top+18);
   ctx.textAlign='left';
-
   ctx.fillStyle='#1a2848'; ctx.fillRect(left,top+20,width,1);
 
 // ── Row 1: signal data ────────────────────────────────────────────────────
@@ -517,7 +516,7 @@ function drawTVScreen() {
   row1.forEach(({ l, v, c }, i) => {
     const cx = left + i * cw;
     if (i > 0) { ctx.fillStyle='#1a2848'; ctx.fillRect(cx, ROW1_TOP, 1, ROW1_H); }
-    ctx.fillStyle='#aaddff'; ctx.font='bold 9px Courier New';
+    ctx.fillStyle='#aaddff'; ctx.font='bold 10px Courier New';
     ctx.textAlign='left'; ctx.fillText(l, cx+6, ROW1_TOP+12);
     ctx.fillStyle = c;
     ctx.font      = v.length > 7 ? 'bold 12px Courier New' : 'bold 18px Courier New';
@@ -554,7 +553,7 @@ function drawTVScreen() {
   row2.forEach(({ l, v, c }, i) => {
     const cx = left + i * cw2;
     if (i > 0) { ctx.fillStyle='#1a2848'; ctx.fillRect(cx, ROW2_TOP+1, 1, ROW2_H); }
-    ctx.fillStyle='#aaddff'; ctx.font='bold 9px Courier New';
+    ctx.fillStyle='#aaddff'; ctx.font='bold 10px Courier New';
     ctx.textAlign='left'; ctx.fillText(l, cx+6, ROW2_TOP+13);
     ctx.fillStyle = c;
     ctx.font      = v.length > 8 ? 'bold 11px Courier New' : 'bold 14px Courier New';
