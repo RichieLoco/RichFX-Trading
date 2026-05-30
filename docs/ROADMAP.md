@@ -5,9 +5,9 @@
 ## Current Status
 
 **Version:** Phase 2 (Advisory Agents — all implemented)  
-**Active agents:** 11 of 12 (Meta accumulating decisions)  
+**Active agents:** 15 of 16 (Sequence Advisor pending 20+ sequences)  
 **EA status:** Demo account, monitoring EURUSD H4 and AUDUSD H4  
-**Monitoring pairs:** 7 additional pairs seeding bar data (no EA)
+**Monitoring pairs:** 35 pairs — 11 symbols across H1/H4/H8 timeframes
 
 ---
 
@@ -34,33 +34,29 @@
 - [x] Performance Analyst (`perf`) — closed trade history stats
 - [x] Strategy Evaluator (`strat`) — signal quality gate in LLM chain
 - [x] Backtest Scout (`scout`) — 500 bars seeded, pattern confidence scoring
-- [x] Journalist (`journ`) — gemma4-e4b-8k, triggers on sequence close, thinking tokens stripped
-- [x] Meta-Supervisor (`meta`) — accumulating decisions, activates at 10+
+- [x] Journalist (`journ`) — gemma4-e4b-8k, triggers on sequence close
+- [x] Meta-Supervisor (`meta`) — active, accumulating decisions
+- [x] Horizon (`hori`) — gemma4-e4b-8k, H4+H1 rankings, per-timeframe cache
+- [x] Timeframe Analyst (`tframe`) — H8 alignment check before H4 entries
+- [x] Volatility Guard (`volat`) — ATR ratio vs 30-bar average
 
 ### Infrastructure
-- [x] FastAPI serving UI and sprites (eliminates file:// CORS)
-- [x] `/last-analysis` cache — dashboard never triggers `/analyse`
-- [x] Analysis cache persisted to disk — agents active instantly after restart
-- [x] `vm_health.py` HTTP server with `/history`, `/bars`, `/decisions`, `/sequences` endpoints
-- [x] `mt5_bridge.py` writing `history.json` and `richfx.db` on each bar
+- [x] FastAPI serving UI and sprites
+- [x] `/last-analysis` cache — persisted to disk, agents active on restart
 - [x] Centralised SQLite DB (`richfx.db`) — bars, decisions, sequences tables
 - [x] 500 bars seeded with backfilled QQE/MACD signals
-- [x] 7 monitoring-only pairs seeding bar data (GBPUSD, USDJPY, EURGBP, NZDUSD, USDCAD, GBPJPY, EURUSD H1)
-- [x] Cloudflare tunnel at `crew.richielo.co`
-- [x] Cloudflare Access email whitelist authentication
-- [x] `window.location.origin` API base — Tailscale compatible
-- [x] Ollama `KEEP_ALIVE=60m` — models pre-warmed in memory
-- [x] Gemma 4 e4b pulled and assigned to Journalist
-- [x] Decision logging to DB after every `/analyse`
-- [x] Sequence close detection and Journalist trigger
-- [x] Favicon (RichieLoco logo)
-- [x] `white-space: pre-wrap` on overlay output divs
-- [x] Closed P&L on TV screen row 2
+- [x] 35 monitoring pairs — 11 symbols × H1/H4/H8 (XAUUSD, GBPAUD, EURJPY, EURCAD added)
+- [x] Horizon per-timeframe cache — H4 and H1 stored separately
+- [x] n8n Horizon H4 + H1 workflows — auto-refresh every bar
+- [x] Dynamic dusk/dawn via SunCalc.js — accurate London sunrise/sunset
+- [x] SunCalc cache bug fixed — date/time recalculation on day boundary
 - [x] TV screen auto-rotates pairs every 30s (pauses on manual click)
-- [x] Alt gesture animation for female agents
+- [x] Alt gesture animation for female agents (exec, corr, perf, journ, meta, news, hori, sqadv)
 - [x] WinSW services for VM processes (mt5_bridge, vm_health, telegram_alerter)
-- [x] n8n NAS health monitor workflow with Telegram alerts
-- [x] GitHub repo at https://github.com/RichieLoco/RichFX
+- [x] n8n NAS health monitor — daily Telegram report with ZFS, temps, VMs, containers
+- [x] GitHub repo public at https://github.com/RichieLoco/RichFX
+- [x] Agent click hit areas tightened — 50×60% zone prevents overlap misfires
+- [x] 16 agents on trading floor — tframe and sqadv at rear, 14 at front
 
 ---
 
@@ -68,54 +64,29 @@
 
 ### Near Term
 
-#### Horizon Agent (Pair Expansion Analyst)
-- [ ] Analyse signal quality across all monitoring pairs in bars DB
-- [ ] Identify pairs where QQE/MACD signals are most consistent
-- [ ] Recommend which pairs to promote to full EA trading
-- [ ] Run weekly via n8n
-- [ ] Model: gemma4-26b-8k (when pulled)
-
-#### Dynamic Dusk/Dawn
-- [ ] Replace hardcoded UTC hour checks with SunCalc algorithm
-- [ ] 1.5-hour transition windows either side of actual sunrise/sunset
-- [ ] Location-configurable (default: London)
-
-#### Multi-pair Crew Analysis
-- [ ] `/analyse` running for each active pair independently
-- [ ] Agent states keyed by pair, not global
-- [ ] TV screen overlay showing per-pair crew decisions
-
----
-
-### Medium Term
+#### Sequence Advisor (`sqadv`)
+- [ ] Build after 20+ completed sequences
+- [ ] Analyse open sequences — age, trade count, P&L, signal alignment
+- [ ] Recommend HEALTHY / MONITOR / CLOSE_EARLY
+- [ ] Model: qwen3-14b-8k
+- [ ] Female agent, has alt gesture
 
 #### Scout Outcome Tagging
 - [ ] Link closed sequences to historical bar patterns
 - [ ] Confidence scoring incorporates actual win rates
 - [ ] Scout becomes statistically meaningful rather than signal-consistency only
 
-#### Journalist Weekly Digest
-- [ ] Batch weekly sequence narratives
-- [ ] n8n workflow triggers weekly summary via Telegram
-- [ ] Ad-hoc: `GET /journalist?last=5` already available
-
-#### Dashboard Enhancements
-- [ ] Dynamic dusk/dawn using SunCalc (location-aware)
-- [ ] Agent gesture animations in zoomed overlay mode for all gestures
+#### Multi-pair Crew Analysis
+- [ ] `/analyse` running for each active pair independently
+- [ ] Agent states keyed by pair, not global
 
 ---
 
-### Long Term
-
-#### Meta-Supervisor (`meta`)
-- [ ] Decision log database (bar-by-bar crew output storage)
-- [ ] Pattern detection queries (systematic avoidance, win rate by pair)
-- [ ] Weekly Telegram meta-analysis report
-- [ ] Threshold adjustment recommendations
+### Medium Term
 
 #### Live Account Transition
 - [ ] Add live account symbol entries to `symbols.json`
-- [ ] Live/demo badge on TV screen (`[L]` suffix)
+- [ ] Live/demo badge on TV screen (`[L]` suffix already implemented)
 - [ ] Separate performance tracking by account type
 - [ ] Drawdown thresholds tightened for live account
 
@@ -123,13 +94,18 @@
 - [ ] New endpoint on `vm_health.py` accepting trade commands
 - [ ] MT5 `OrderSend()` / `PositionClose()` via Python
 - [ ] Risk Governor triggering close on `DD_HALT`
+- [ ] Tframe blocking counter-trend entries at execution level
+- [ ] Volat blocking entries during extreme ATR spikes
 - [ ] Safeguards: confirmation window, max position size limits
-- [ ] **Note:** Significant work — requires careful safety design before implementation
+- [ ] **Note:** Requires 2+ months of advisory data before implementation
+
+#### Journalist Weekly Digest
+- [ ] Batch weekly sequence narratives
+- [ ] n8n workflow triggers weekly summary via Telegram
 
 #### Cloudflare Hardening
 - [ ] Rate limiting on API endpoints
 - [ ] Cloudflare WAF rules
-- [ ] Access logging to R2
 
 ---
 
@@ -139,8 +115,8 @@
 |-------|----------|-------|
 | Post-quantum SSH warning on VM connections | Cosmetic | Server needs OpenSSH upgrade |
 | Scout outcome data missing | Low | Sequences need to close before win rates are meaningful |
-| Meta needs 10+ decisions | Low | Accumulating — activates automatically |
-| `write_history` only called on new bar | Low | Single-run mode doesn't write history |
+| tframe shows TFRAME_NA until directional trade | Expected | Correct — no action to check alignment on |
+| Volat ratio low on weekend/off-hours | Expected | Partial bars — correct during active sessions |
 
 ---
 

@@ -169,12 +169,12 @@ WantedBy=multi-user.target
 
 ### 7. Pre-warm Models
 
-After service starts, warm up all four models:
+After service starts, warm up all models:
 ```bash
 ollama run qwen3-14b-8k "ready" --keepalive 60m &
 ollama run deepseek-r1-14b-8k "ready" --keepalive 60m &
-ollama run qwen3-14b-nothink-8k "ready" --keepalive 60m &
 ollama run qwen25-14b-8k "ready" --keepalive 60m &
+ollama run gemma4-e4b-8k "ready" --keepalive 60m &
 wait
 ollama ps  # verify all four loaded
 ```

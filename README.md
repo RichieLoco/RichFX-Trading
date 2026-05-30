@@ -1,6 +1,6 @@
 # RichFX Trading Floor
 
-An AI-powered algorithmic trading monitoring system built around a 13-agent crew, a live MT5 bridge, and a pixel-art trading floor dashboard. Agents analyse H4 signals in a sequential chain, advisory agents monitor risk conditions, and a centralised SQLite database accumulates decision history for pattern analysis.
+An AI-powered algorithmic trading monitoring system built around a 15-agent crew, a live MT5 bridge, and a pixel-art trading floor dashboard. Agents analyse H4 signals in a sequential chain, advisory agents monitor risk conditions, and a centralised SQLite database accumulates decision history for pattern analysis.
 
 > 🔴 **Live demo:** [crew.richielo.co](https://crew.richielo.co) *(Cloudflare Access — request access via the repo)*
 
@@ -77,13 +77,13 @@ The trading floor has 13 agents across two phases:
 | **Journalist** | Plain-English post-mortems on completed sequences | ✅ Active |
 | **Meta-Supervisor** | Reviews crew decisions for systematic bias (needs 10+ bars) | ✅ Active |
 | **Horizon** | Cross-pair signal quality analyst — recommends pair expansion | ✅ Active |
+| **Timeframe Analyst** | Checks H8 trend alignment before H4 entries — flags counter-trend DCA | ✅ Active |
+| **Volatility Guard** | ATR-based spike detection — flags abnormal volatility conditions | ✅ Active |
 
 ### Planned Agents
 
 | Agent | Role | Status |
 |-------|------|--------|
-| **Timeframe Analyst** | Checks D1/H4 trend alignment before entry — blocks counter-trend DCA | 🔲 Planned |
-| **Volatility Guard** | ATR-based spike detection — blocks entries during abnormal volatility | 🔲 Planned |
 | **Sequence Advisor** | Intelligent open sequence management — early close recommendations | 🔲 Planned |
 
 ---
@@ -106,21 +106,21 @@ The trading floor has 13 agents across two phases:
 |:---:|:---:|:---:|:---:|
 | ![](sprites/characters/news_stand_south.gif) | ![](sprites/characters/journ_stand_south.gif) | ![](sprites/characters/scout_stand_south.gif) | ![](sprites/characters/meta_stand_south.gif) |
 
-| <sub>Horizon</sub> | | | |
+| <sub>Horizon</sub> | <sub>Timeframe</sub> | <sub>Volatility</sub> | |
 |:---:|:---:|:---:|:---:|
-| ![](sprites/characters/hori_stand_south.gif) | | | |
+| ![](sprites/characters/hori_stand_south.gif) | ![](sprites/characters/tframe_stand_south.gif) | ![](sprites/characters/volat_stand_south.gif) | |
 
-> **Horizon** — The newest agent. A female analyst who scans signal quality across all monitored currency pairs and recommends which ones are ready to promote to full EA trading. Powered by `gemma4-e4b-8k`.
+> **Horizon** — Scans signal quality across all monitored pairs across H4 and H1 timeframes. Recommends which pairs to promote to full EA trading. Powered by `gemma4-e4b-8k`.
+> **Timeframe Analyst** (`tframe`) — Checks H8 trend alignment before H4 entries. Flags counter-trend DCA sequences — the biggest cause of deep drawdown.
+> **Volatility Guard** (`volat`) — ATR-based spike detection. Flags entries during flash crashes, news spikes, and open-of-week gaps.
 
 ### Coming Soon
 
-| <sub>Timeframe Analyst</sub> | <sub>Volatility Guard</sub> | <sub>Sequence Advisor</sub> | |
+| <sub>Sequence Advisor</sub> | | | |
 |:---:|:---:|:---:|:---:|
-| ![](sprites/characters/tframe_stand_south.gif) | ![](sprites/characters/volat_stand_south.gif) | ![](sprites/characters/sqadv_stand_south.gif) | |
+| ![](sprites/characters/sqadv_stand_south.gif) | | | |
 
-> **Timeframe Analyst** (`tframe`) — Checks D1 trend alignment before H4 entries. Blocks counter-trend DCA sequences — the biggest cause of deep drawdown.
-> **Volatility Guard** (`volat`) — ATR-based spike detection. Blocks entries during flash crashes, news spikes, and open-of-week gaps.
-> **Sequence Advisor** (`sqadv`) — Monitors open sequences and recommends early closes when conditions deteriorate.
+> **Sequence Advisor** (`sqadv`) — Monitors open sequences and recommends early closes when conditions deteriorate. Requires 20+ completed sequences.
 
 ---
 
@@ -163,7 +163,8 @@ MT5 EA (Win11 VM) — runs independently, manages trades
             ├── seeds richfx.db bars table (500 bars + backfill)
             ├── appends new bar on each close
             └── seeds bars for monitoring-only pairs (magic=0, no EA)
-                GBPUSD, USDJPY, EURGBP, NZDUSD, USDCAD, GBPJPY, EURUSD H1
+                11 symbols × H1/H4/H8 — GBPUSD, USDJPY, EURGBP, NZDUSD,
+                USDCAD, GBPJPY, XAUUSD, GBPAUD, EURJPY, EURCAD + EURUSD H1/H8
 
 n8n (NAS) — sole trigger for analysis, fires on H4 bar schedule
     │
@@ -171,6 +172,8 @@ n8n (NAS) — sole trigger for analysis, fires on H4 bar schedule
             ├── SSH fetch state JSON from VM
             ├── 4-agent LLM chain (Ollama, ~4 min)
             ├── pure-Python checks (sess, dd, corr, news)
+            ├── check_timeframe_alignment() — H8 trend vs H4 entry direction
+            ├── check_volatility() — ATR ratio vs 30-bar average
             ├── cache result in memory + persist to disk
             ├── write decision to richfx.db via SSH
             ├── detect sequence close → trigger Journalist
@@ -239,7 +242,7 @@ TELEGRAM_CHAT_ID=your_chat_id
 - Public: `https://crew.richielo.co` *(Cloudflare Access — email OTP)*
 
 **Features:**
-- 13 pixel-art agents with walk/stand/action/cheer/cry/anxious animations
+- 16 pixel-art agents with walk/stand/action/cheer/cry/anxious animations
 - TV screen: QQE, sequence P&L, open P&L, closed P&L, equity, margin
 - TV screen auto-rotates across active pairs every 30 seconds (pauses on manual click)
 - UTC analogue clock, market open/closed indicator
@@ -249,6 +252,9 @@ TELEGRAM_CHAT_ID=your_chat_id
 - Alt gesture animation — female agents zoom from bottom on request
 - Analysis cache persisted to disk — agents active instantly after restart
 - Automatic 5-minute data refresh (n8n owns analysis trigger)
+- Timeframe Analyst — H8 alignment check on every H4 analysis
+- Volatility Guard — ATR ratio vs 30-bar average on every analysis
+- Horizon — H4 and H1 rankings shown in overlay, refreshes every bar
 
 ---
 

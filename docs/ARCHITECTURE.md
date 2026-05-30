@@ -25,7 +25,7 @@ The primary compute node. Runs all LLM inference and the FastAPI server.
 - `qwen3-14b-8k` — Regime Analyst + Strategy Evaluator
 - `deepseek-r1-14b-8k` — Risk Governor
 - `qwen25-14b-8k` — Execution Coordinator
-- `gemma4-e4b-8k` — Journalist (narrative generation)
+- `gemma4-e4b-8k` — Journalist + Horizon (narrative generation, pair analysis)
 
 All models configured with 8192 token context window and 60-minute keepalive to remain resident in the 128GB unified RAM pool.
 
@@ -100,10 +100,12 @@ n8n (NAS LXC) — H4 bar schedule
             │         → Risk Governor (deepseek-r1-14b-8k)
             │             → Strategy Evaluator (qwen3-14b-8k)
             │                 → Execution Coordinator (qwen25-14b-8k)
-            ├── check_session()      — pure Python
-            ├── check_drawdown()     — pure Python
-            ├── check_correlation()  — reads correlations.json
-            ├── check_news_calendar() — ForexFactory API
+            ├── check_session()           — pure Python
+            ├── check_drawdown()          — pure Python
+            ├── check_correlation()       — reads correlations.json
+            ├── check_news_calendar()     — ForexFactory API
+            ├── check_timeframe_alignment() — H8 bars from DB
+            ├── check_volatility()        — ATR ratio from DB bars
             ├── cache result in _last_analysis[symbol]
             └── return AnalyseResponse
 
@@ -306,7 +308,7 @@ HTML Canvas (1280×400px)
     └── drawNightOverlay()  — UTC-aware darkness overlay
 
 HTML Div Layer (#agentLayer)
-    └── 12 × .agent-wrapper divs
+    └── 16 × .agent-wrapper divs
             ├── .agent-name  — label tag above sprite
             └── .agent-sprite <img>  — GIF animation
 ```
