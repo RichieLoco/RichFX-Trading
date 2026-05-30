@@ -373,7 +373,7 @@ NOTE: sample size caveat
 
 | | |
 |:---:|:---|
-| *(sprite pending)* | **Implementation:** Pure Python initially<br>**Planned trigger:** Every `/analyse` call<br>**Output:** ALIGNED / NEUTRAL / OPPOSING |
+| ![](sprites/characters/tframe_stand_south.gif) | **Implementation:** Pure Python initially<br>**Planned trigger:** Every `/analyse` call<br>**Output:** ALIGNED / NEUTRAL / OPPOSING |
 
 **Role:** Checks the higher timeframe trend before every entry decision. If trading H4, checks D1. If H1, checks H4 and D1.
 
@@ -387,7 +387,7 @@ NOTE: sample size caveat
 
 | | |
 |:---:|:---|
-| *(sprite pending)* | **Implementation:** Pure Python — ATR from bars DB<br>**Planned trigger:** Every `/analyse` call<br>**Output:** NORMAL / ELEVATED / EXTREME |
+| ![](sprites/characters/volat_stand_south.gif) | **Implementation:** Pure Python — ATR from bars DB<br>**Planned trigger:** Every `/analyse` call<br>**Output:** NORMAL / ELEVATED / EXTREME |
 
 **Role:** Calculates current ATR against a rolling historical average. Flags when volatility is significantly above normal — flash crashes, post-news spikes, open-of-week gaps.
 
@@ -401,7 +401,7 @@ NOTE: sample size caveat
 
 | | |
 |:---:|:---|
-| *(sprite pending)* | **Model:** `qwen3-14b-8k`<br>**Planned trigger:** Every `/analyse` call<br>**Output:** HEALTHY / MONITOR / CLOSE\_EARLY |
+| ![](sprites/characters/sqadv_stand_south.gif) | **Model:** `qwen3-14b-8k`<br>**Planned trigger:** Every `/analyse` call<br>**Output:** HEALTHY / MONITOR / CLOSE\_EARLY |
 
 **Role:** Analyses open sequences and advises whether to add to them, hold, or close early. Looks at sequence age, number of trades, current P&L, signal direction vs sequence direction, and Scout's historical pattern data.
 

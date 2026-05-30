@@ -31,8 +31,7 @@ All machines connected via **Tailscale** mesh VPN.
 │  ubuntu-ai — Minisforum MS-S1 MAX (128GB)                       │
 │  ├── Ollama (LLM inference)                 :11434              │
 │  │     qwen3-14b-8k, deepseek-r1-14b-8k                         │
-│  │     qwen25-14b-8k, gemma4-e4b-8k                             │
-│  │     gemma4-26b-8k  (~60GB loaded)                            │
+│  │     qwen25-14b-8k, gemma4-e4b-8k (~50GB loaded)              │
 │  ├── FastAPI Crew API                       :8000               │
 │  └── Trading Floor Dashboard               /ui/                 │
 ├─────────────────────────────────────────────────────────────────┤
@@ -79,6 +78,14 @@ The trading floor has 13 agents across two phases:
 | **Meta-Supervisor** | Reviews crew decisions for systematic bias (needs 10+ bars) | ✅ Active |
 | **Horizon** | Cross-pair signal quality analyst — recommends pair expansion | ✅ Active |
 
+### Planned Agents
+
+| Agent | Role | Status |
+|-------|------|--------|
+| **Timeframe Analyst** | Checks D1/H4 trend alignment before entry — blocks counter-trend DCA | 🔲 Planned |
+| **Volatility Guard** | ATR-based spike detection — blocks entries during abnormal volatility | 🔲 Planned |
+| **Sequence Advisor** | Intelligent open sequence management — early close recommendations | 🔲 Planned |
+
 ---
 
 ## The Trading Floor
@@ -103,7 +110,17 @@ The trading floor has 13 agents across two phases:
 |:---:|:---:|:---:|:---:|
 | ![](sprites/characters/hori_stand_south.gif) | | | |
 
-> **Horizon** — The newest agent. A female analyst who scans signal quality across all monitored currency pairs and recommends which ones are ready to promote to full EA trading. Powered by `gemma4-26b-8k`.
+> **Horizon** — The newest agent. A female analyst who scans signal quality across all monitored currency pairs and recommends which ones are ready to promote to full EA trading. Powered by `gemma4-e4b-8k`.
+
+### Coming Soon
+
+| <sub>Timeframe Analyst</sub> | <sub>Volatility Guard</sub> | <sub>Sequence Advisor</sub> | |
+|:---:|:---:|:---:|:---:|
+| ![](sprites/characters/tframe_stand_south.gif) | ![](sprites/characters/volat_stand_south.gif) | ![](sprites/characters/sqadv_stand_south.gif) | |
+
+> **Timeframe Analyst** (`tframe`) — Checks D1 trend alignment before H4 entries. Blocks counter-trend DCA sequences — the biggest cause of deep drawdown.
+> **Volatility Guard** (`volat`) — ATR-based spike detection. Blocks entries during flash crashes, news spikes, and open-of-week gaps.
+> **Sequence Advisor** (`sqadv`) — Monitors open sequences and recommends early closes when conditions deteriorate.
 
 ---
 
