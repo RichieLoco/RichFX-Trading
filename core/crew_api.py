@@ -1,3 +1,4 @@
+from typing import Optional
 """
 RichFX Crew API
 ===============
@@ -173,6 +174,7 @@ class AnalyseResponse(BaseModel):
     drawdown:      DrawdownResult
     correlation:   CorrelationResult
     news:          NewsResult
+    timeframe_alignment: Optional[dict] = None
 
 # ---------------------------------------------------------------------------
 # Config helpers
@@ -391,6 +393,97 @@ def check_news_calendar(symbol: str, window_hours: int = 24) -> NewsResult:
         summary      = f"No high-impact events for {symbol} in next {window_hours}h",
         window_hours = window_hours,
     )
+
+async def check_timeframe_alignment(symbol: str, timeframe: str, proposed_action: str) -> dict:
+    """
+    Check higher timeframe trend alignment before entry.
+    H1 → checks H4 and H8
+    H4 → checks H8
+    H8 → no higher TF available
+    """
+    # Determine trade direction
+    action_lower = proposed_action.lower()
+    if 'buy' in action_lower:
+        direction = 'BUY'
+    elif 'sell' in action_lower:
+        direction = 'SELL'
+    else:
+        return {
+            "status":  "TFRAME_NA",
+            "summary": "No directional trade — alignment check skipped",
+            "direction": "NONE",
+            "timeframes_checked": [],
+        }
+
+    # Higher timeframe map
+    tf_map = {"H1": ["H4", "H8"], "H4": ["H8"], "H8": []}
+    higher_tfs = tf_map.get(timeframe, [])
+
+    if not higher_tfs:
+        return {
+            "status":  "TFRAME_NA",
+            "summary": f"No higher timeframe configured for {timeframe}",
+            "direction": direction,
+            "timeframes_checked": [],
+        }
+
+    results = []
+    import httpx as _httpx
+    async with _httpx.AsyncClient(timeout=10.0) as client:
+        for htf in higher_tfs:
+            try:
+                resp = await client.get(
+                    f"{VM_HEALTH_URL}/bars",
+                    params={"symbol": symbol, "timeframe": htf, "limit": 5}
+                )
+                bars = resp.json().get("bars", [])
+                if not bars:
+                    results.append({"tf": htf, "alignment": "NO_DATA", "trend": 0, "qqe": None})
+                    continue
+
+                latest = bars[0]
+                trend  = latest.get("qmp_trend", 0) or 0
+                qqe    = latest.get("qqe", 50)    or 50
+
+                if direction == 'BUY':
+                    if trend == 1 and qqe > 50:   alignment = "ALIGNED"
+                    elif trend == -1 or qqe < 45:  alignment = "OPPOSING"
+                    else:                          alignment = "NEUTRAL"
+                else:  # SELL
+                    if trend == -1 and qqe < 50:  alignment = "ALIGNED"
+                    elif trend == 1 or qqe > 55:  alignment = "OPPOSING"
+                    else:                         alignment = "NEUTRAL"
+
+                results.append({"tf": htf, "alignment": alignment,
+                                 "trend": trend, "qqe": round(qqe, 2)})
+            except Exception:
+                results.append({"tf": htf, "alignment": "ERROR", "trend": 0, "qqe": None})
+
+    # Overall status — any OPPOSING = block
+    alignments = [r["alignment"] for r in results
+                  if r["alignment"] not in ("NO_DATA", "ERROR")]
+
+    if not alignments:
+        overall = "TFRAME_NA"
+    elif "OPPOSING" in alignments:
+        overall = "TFRAME_OPPOSING"
+    elif all(a == "ALIGNED" for a in alignments):
+        overall = "TFRAME_ALIGNED"
+    else:
+        overall = "TFRAME_NEUTRAL"
+
+    detail  = " | ".join(
+        f"{r['tf']}: {r['alignment']} (QQE {r['qqe']}, trend {r['trend']})"
+        for r in results
+    )
+    summary = f"{direction} entry — {overall} | {detail}"
+
+    return {
+        "status":             overall,
+        "summary":            summary,
+        "direction":          direction,
+        "timeframes_checked": results,
+    }
 
 def write_decision_to_db(decision: dict):
     """
@@ -1181,6 +1274,11 @@ async def analyse(req: AnalyseRequest):
             pass  # if a pair isn't cached yet just skip it
     corr_result = check_correlation(req.symbol, proposed_dir, other_states)
     news_result  = check_news_calendar(req.symbol)
+    # Timeframe alignment check
+    tframe_result = await check_timeframe_alignment(
+        req.symbol, req.timeframe,
+        exec_summary
+    )
 
     # Cache the result for /last-analysis endpoint
     _last_analysis[req.symbol] = {
@@ -1200,6 +1298,7 @@ async def analyse(req: AnalyseRequest):
         "drawdown":      dd_result.model_dump(),
         "correlation":   corr_result.model_dump(),
         "news":          news_result.model_dump(),
+        "timeframe_alignment": tframe_result,
     }
     save_analysis_cache()
 
@@ -1355,6 +1454,7 @@ async def analyse(req: AnalyseRequest):
         drawdown      = dd_result,
         correlation   = corr_result,
         news          = news_result,
+        timeframe_alignment = tframe_result,
     )
 
 @app.get("/last-analysis")

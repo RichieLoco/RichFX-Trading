@@ -782,6 +782,9 @@ const PHASE2_DESCRIPTIONS = {
   scout: 'Compares signals against historical patterns with confidence scores.',
   meta:  'Reviews crew decisions across bars. Flags systematic avoidance patterns.',
   hori:  'Analyses signal quality across all monitored pairs. Recommends which pairs to promote to EA trading.',
+  tframe: 'Checks higher timeframe trend alignment before H4/H1 entries. OPPOSING blocks counter-trend DCA sequences — the biggest cause of deep drawdown.',
+  volat:  'ATR-based volatility spike detection. Blocks entries during flash crashes, news spikes and open-of-week gaps.',
+  sqadv:  'Monitors open sequences and recommends early closes when conditions deteriorate significantly.',
 };
 
 function openAgentOverlay(i) {
@@ -1104,6 +1107,20 @@ async function fetchLiveData() {
                          : data.news.summary,
           };
           applyAgentVisuals('news');
+        }
+        if (data.timeframe_alignment) {
+          const tf = data.timeframe_alignment;
+          agentState.tframe = {
+            status:    tf.status === 'TFRAME_OPPOSING' ? 'rejected'
+             : tf.status === 'TFRAME_ALIGNED'  ? 'approved'
+             : tf.status === 'TFRAME_NEUTRAL'  ? 'idle'
+             : 'dormant',
+            summary:   tf.summary || 'Awaiting directional trade.',
+            rawOutput: (tf.timeframes_checked || [])
+               .map(r => `${r.tf}: ${r.alignment} | QQE ${r.qqe} | Trend ${r.trend}`)
+               .join('\n') || tf.summary,
+            };
+          applyAgentVisuals('tframe');
         }
         const rawAction = data.execution.summary.split('|')[0].trim();
         marketData.pairs[pair.symbol].action = rawAction
