@@ -1,76 +1,116 @@
 {
   "pairs": [
     {
-      "symbol":    "EURUSD",
-      "timeframe": "H4",
-      "magic":     100401,
-      "active":    true,
-      "lot_base":  0.01,
-      "comment":   "Active EA pair"
+      "symbol": "EURUSD", "timeframe": "H4",
+      "magic": 100401, "active": true, "lot_base": 0.01,
+      "comment": "Active EA pair"
     },
     {
-      "symbol":    "AUDUSD",
-      "timeframe": "H4",
-      "magic":     100402,
-      "active":    true,
-      "lot_base":  0.01,
-      "comment":   "Active EA pair"
+      "symbol": "AUDUSD", "timeframe": "H4",
+      "magic": 100402, "active": true, "lot_base": 0.01,
+      "comment": "Active EA pair"
     },
     {
-      "symbol":    "GBPUSD",
-      "timeframe": "H4",
-      "magic":     0,
-      "active":    true,
-      "lot_base":  0.01,
-      "comment":   "Monitoring only — no EA"
+      "symbol": "EURUSD",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor H1"
     },
     {
-      "symbol":    "USDJPY",
-      "timeframe": "H4",
-      "magic":     0,
-      "active":    true,
-      "lot_base":  0.01,
-      "comment":   "Monitoring only — no EA"
+      "symbol": "EURUSD",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor H8"
     },
     {
-      "symbol":    "EURGBP",
-      "timeframe": "H4",
-      "magic":     0,
-      "active":    true,
-      "lot_base":  0.01,
-      "comment":   "Monitoring only — no EA"
+      "symbol": "AUDUSD",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor H1"
     },
     {
-      "symbol":    "NZDUSD",
-      "timeframe": "H4",
-      "magic":     0,
-      "active":    true,
-      "lot_base":  0.01,
-      "comment":   "Monitoring only — no EA"
+      "symbol": "AUDUSD",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor H8"
     },
     {
-      "symbol":    "USDCAD",
-      "timeframe": "H4",
-      "magic":     0,
-      "active":    true,
-      "lot_base":  0.01,
-      "comment":   "Monitoring only — no EA"
+      "symbol": "GBPUSD",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
     },
     {
-      "symbol":    "GBPJPY",
-      "timeframe": "H4",
-      "magic":     0,
-      "active":    true,
-      "lot_base":  0.01,
-      "comment":   "Monitoring only — no EA"
+      "symbol": "GBPUSD",  "timeframe": "H4", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
     },
     {
-      "symbol":    "EURUSD",
-      "timeframe": "H1",
-      "magic":     0,
-      "active":    true,
-      "lot_base":  0.01,
-      "comment":   "Monitoring only — H1 timeframe comparison"
+      "symbol": "GBPUSD",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "USDCAD",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon 9/10"
+    },
+    {
+      "symbol": "USDCAD",  "timeframe": "H4", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon 9/10"
+    },
+    {
+      "symbol": "USDCAD",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon 9/10"
+    },
+    {
+      "symbol": "EURGBP",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon 7/10"
+    },
+    {
+      "symbol": "EURGBP",  "timeframe": "H4", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon 7/10"
+    },
+    {
+      "symbol": "EURGBP",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon 7/10"
+    },
+    {
+      "symbol": "GBPJPY",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon 7/10"
+    },
+    {
+      "symbol": "GBPJPY",  "timeframe": "H4", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon 7/10"
+    },
+    {
+      "symbol": "GBPJPY",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon 7/10"
+    },
+    {
+      "symbol": "NZDUSD",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "NZDUSD",  "timeframe": "H4", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "NZDUSD",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "USDJPY",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon caution"
+    },
+    {
+      "symbol": "USDJPY",  "timeframe": "H4", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon caution"
+    },
+    {
+      "symbol": "USDJPY",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Horizon caution"
+    },
+    {
+      "symbol": "XAUUSD",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Gold"
+    },
+    {
+      "symbol": "XAUUSD",  "timeframe": "H4", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Gold"
+    },
+    {
+      "symbol": "XAUUSD",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor — Gold"
+    },
+    {
+      "symbol": "GBPAUD",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "GBPAUD",  "timeframe": "H4", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "GBPAUD",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "EURJPY",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "EURJPY",  "timeframe": "H4", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "EURJPY",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "EURCAD",  "timeframe": "H1", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "EURCAD",  "timeframe": "H4", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
+    },
+    {
+      "symbol": "EURCAD",  "timeframe": "H8", "magic": 0, "active": true, "lot_base": 0.01, "comment": "Monitor"
     }
   ],
   "settings": {
