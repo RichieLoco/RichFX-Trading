@@ -1122,6 +1122,19 @@ async function fetchLiveData() {
             };
           applyAgentVisuals('tframe');
         }
+        if (data.volatility) {
+          const v = data.volatility;
+          agentState.volat = {
+            status:    v.status === 'VOLAT_EXTREME'  ? 'rejected'
+                     : v.status === 'VOLAT_ELEVATED' ? 'anxious'
+                     : v.status === 'VOLAT_NORMAL'   ? 'approved'
+                     : 'dormant',
+            summary:   v.summary || 'Checking volatility...',
+            rawOutput: `Status: ${v.status}\nCurrent ATR: ${v.current_pts}pts\nAvg ATR (30 bars): ${v.avg_pts}pts\nRatio: ${v.ratio}x normal`,
+          };
+          applyAgentVisuals('volat');
+        }
+        
         const rawAction = data.execution.summary.split('|')[0].trim();
         marketData.pairs[pair.symbol].action = rawAction
           .replace('NO ACTION', 'NO ACT')

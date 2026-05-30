@@ -175,6 +175,7 @@ class AnalyseResponse(BaseModel):
     correlation:   CorrelationResult
     news:          NewsResult
     timeframe_alignment: Optional[dict] = None
+    volatility:          Optional[dict] = None
 
 # ---------------------------------------------------------------------------
 # Config helpers
@@ -483,6 +484,88 @@ async def check_timeframe_alignment(symbol: str, timeframe: str, proposed_action
         "summary":            summary,
         "direction":          direction,
         "timeframes_checked": results,
+    }
+
+async def check_volatility(symbol: str, timeframe: str) -> dict:
+    """
+    ATR-based volatility spike detection.
+    Compares current ATR against 30-bar rolling average.
+    NORMAL < 1.5x | ELEVATED 1.5-2.5x | EXTREME > 2.5x
+    """
+    import httpx as _httpx
+
+    try:
+        async with _httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{VM_HEALTH_URL}/bars",
+                params={"symbol": symbol, "timeframe": timeframe, "limit": 50}
+            )
+            bars = resp.json().get("bars", [])
+    except Exception as e:
+        return {
+            "status":       "VOLAT_NA",
+            "summary":      f"Volatility check unavailable: {e}",
+            "current_atr":  None,
+            "avg_atr":      None,
+            "ratio":        None,
+        }
+
+    if len(bars) < 10:
+        return {
+            "status":       "VOLAT_NA",
+            "summary":      "Insufficient bars for ATR calculation",
+            "current_atr":  None,
+            "avg_atr":      None,
+            "ratio":        None,
+        }
+
+    # Calculate ATR (high - low) for each bar
+    atrs = []
+    for b in bars:
+        try:
+            high = float(b.get("high", 0))
+            low  = float(b.get("low",  0))
+            if high > 0 and low > 0:
+                atrs.append(round(high - low, 5))
+        except Exception:
+            continue
+
+    if len(atrs) < 5:
+        return {
+            "status":       "VOLAT_NA",
+            "summary":      "Insufficient OHLC data for ATR",
+            "current_atr":  None,
+            "avg_atr":      None,
+            "ratio":        None,
+        }
+
+    current_atr = atrs[1] if len(atrs) > 1 else atrs[0]  # last CLOSED bar
+    avg_atr     = round(sum(atrs[2:32]) / min(len(atrs) - 2, 30), 5)  # 30-bar average
+    ratio       = round(current_atr / avg_atr, 2) if avg_atr > 0 else 1.0
+
+    # Convert to pips for display (approximate)
+    pip_scale   = 100 if "JPY" in symbol or "XAU" in symbol else 10000
+    current_pts = round(current_atr * pip_scale, 1)
+    avg_pts     = round(avg_atr     * pip_scale, 1)
+
+    if ratio >= 2.5:
+        status  = "VOLAT_EXTREME"
+        verdict = f"EXTREME spike — {ratio}x normal ({current_pts}pts vs avg {avg_pts}pts)"
+    elif ratio >= 1.5:
+        status  = "VOLAT_ELEVATED"
+        verdict = f"ELEVATED volatility — {ratio}x normal ({current_pts}pts vs avg {avg_pts}pts)"
+    else:
+        status  = "VOLAT_NORMAL"
+        verdict = f"Normal volatility — {ratio}x avg ({current_pts}pts vs avg {avg_pts}pts)"
+
+    return {
+        "status":       status,
+        "summary":      f"{symbol} {timeframe}: {verdict}",
+        "current_atr":  current_atr,
+        "avg_atr":      avg_atr,
+        "ratio":        ratio,
+        "current_pts":  current_pts,
+        "avg_pts":      avg_pts,
     }
 
 def write_decision_to_db(decision: dict):
@@ -1279,6 +1362,8 @@ async def analyse(req: AnalyseRequest):
         req.symbol, req.timeframe,
         exec_summary
     )
+    # Volatility check
+    volat_result = await check_volatility(req.symbol, req.timeframe)
 
     # Cache the result for /last-analysis endpoint
     _last_analysis[req.symbol] = {
@@ -1299,6 +1384,7 @@ async def analyse(req: AnalyseRequest):
         "correlation":   corr_result.model_dump(),
         "news":          news_result.model_dump(),
         "timeframe_alignment": tframe_result,
+        "volatility": volat_result,
     }
     save_analysis_cache()
 
@@ -1455,6 +1541,7 @@ async def analyse(req: AnalyseRequest):
         correlation   = corr_result,
         news          = news_result,
         timeframe_alignment = tframe_result,
+        volatility          = volat_result,
     )
 
 @app.get("/last-analysis")
