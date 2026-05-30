@@ -52,7 +52,7 @@ ACCOUNT_IS_DEMO_DEFAULT = True
 # Cache for last crew analysis result — keyed by symbol
 _last_analysis: dict = {}
 
-_last_horizon: dict = {}
+_last_horizon: dict = {}  # keyed by timeframe e.g. {"H4": {...}, "H1": {...}}
 
 _prev_positions: dict = {}  # {symbol_magic: set of ticket IDs} for sequence close detection
 
@@ -1251,28 +1251,30 @@ async def run_horizon(timeframe: str = "H4"):
 
     summary_line = narrative.split('\n')[0] if narrative else ""
 
-    _last_horizon["result"] = {
+    result = {
         "status":       status,
         "summary":      summary_line,
         "narrative":    narrative,
         "pairs":        pair_data,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "timeframe":    timeframe,
     }
-
+    _last_horizon[timeframe] = result
     save_horizon_cache()
-    return _last_horizon["result"]
+    return result
 
 @app.get("/horizon/last")
-async def get_last_horizon():
-    """Return cached Horizon analysis — instant, no LLM."""
-    if not _last_horizon:
+async def get_last_horizon(timeframe: str = "H4"):
+    """Return cached Horizon analysis for a specific timeframe — instant, no LLM."""
+    if timeframe not in _last_horizon:
         return {
             "status":    "PENDING",
-            "summary":   "No Horizon analysis run yet.",
+            "summary":   f"No Horizon analysis run yet for {timeframe}.",
             "narrative": "",
             "pairs":     {},
+            "timeframe": timeframe,
         }
-    return _last_horizon["result"]
+    return _last_horizon[timeframe]
 
 @app.get("/state")
 async def get_state(symbol: str = "EURUSD", timeframe: str = "H4"):

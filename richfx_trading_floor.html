@@ -923,16 +923,22 @@ async function fetchPerformance() {
 
 async function fetchHorizon() {
   try {
-    const res  = await fetch(`${API_BASE}/horizon/last`);
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data.status === 'PENDING') return;
+    const [resH4, resH1] = await Promise.all([
+      fetch(`${API_BASE}/horizon/last?timeframe=H4`),
+      fetch(`${API_BASE}/horizon/last?timeframe=H1`),
+    ]);
+    if (!resH4.ok) return;
+    const h4 = await resH4.json();
+    if (h4.status === 'PENDING') return;
+
+    const h1 = resH1.ok ? await resH1.json() : null;
+
     agentState.hori = {
-      status:    data.status === 'OPPORTUNITY' ? 'approved'
-               : data.status === 'CAUTION'     ? 'anxious'
+      status:    h4.status === 'OPPORTUNITY' ? 'approved'
+               : h4.status === 'CAUTION'     ? 'anxious'
                : 'idle',
-      summary:   data.summary || 'Analysing monitoring pairs...',
-      rawOutput: data.narrative || 'No analysis yet.',
+      summary:   h4.summary || 'Analysing monitoring pairs...',
+      rawOutput: `=== H4 ANALYSIS ===\n${h4.narrative || 'No H4 analysis yet.'}\n\n=== H1 ANALYSIS ===\n${h1 && h1.status !== 'PENDING' ? h1.narrative : 'No H1 analysis yet.'}`,
     };
     applyAgentVisuals('hori');
   } catch(_) {}
@@ -1213,7 +1219,7 @@ async function init() {
   await fetchJournalist();
   await fetchScout();
   await fetchMeta();
-  setTimeout(fetchHorizon, 2000);
+  await fetchHorizon();
   setInterval(fetchHorizon, 1800000);  // every 30 minutes — slow poll
   setInterval(fetchLiveData, 300000); // refresh every 5 minutes
   setInterval(fetchPerformance, 300000);
