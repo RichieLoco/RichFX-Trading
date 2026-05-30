@@ -1,6 +1,6 @@
 # RichFX Trading Floor
 
-An AI-powered algorithmic trading monitoring system built around a 13-agent CrewAI crew, a live MT5 bridge, and a pixel-art trading floor dashboard. Agents analyse H4 signals in a sequential chain, advisory agents monitor risk conditions, and a centralised SQLite database accumulates decision history for pattern analysis.
+An AI-powered algorithmic trading monitoring system built around a 13-agent crew, a live MT5 bridge, and a pixel-art trading floor dashboard. Agents analyse H4 signals in a sequential chain, advisory agents monitor risk conditions, and a centralised SQLite database accumulates decision history for pattern analysis.
 
 > 🔴 **Live demo:** [crew.richielo.co](https://crew.richielo.co) *(Cloudflare Access — request access via the repo)*
 

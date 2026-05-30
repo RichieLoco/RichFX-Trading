@@ -58,7 +58,7 @@ _prev_positions: dict = {}  # {symbol_magic: set of ticket IDs} for sequence clo
 _calendar_cache: dict = {"data": None, "fetched_at": 0}
 
 _animation_queue: list = []
-FEMALE_AGENTS = {"exec", "corr", "perf", "journ", "meta", "news", "hori"}
+FEMALE_AGENTS = {"exec", "corr", "perf", "journ", "meta", "news", "hori", "sqadv"}
 
 _calendar_cache: dict = {"data": None, "fetched_at": 0}
 
