@@ -119,7 +119,7 @@ const ctx    = canvas.getContext('2d');
 const CANVAS_WIDTH  = 1280;
 const CANVAS_HEIGHT = 400;
 const WALL_HEIGHT   = 162;
-const SLOT_WIDTH    = CANVAS_WIDTH / 13;
+const SLOT_WIDTH    = CANVAS_WIDTH / 14;
 const AGENT_Y       = 258;
 const SPRITE_SIZE   = 130;
 
@@ -249,6 +249,9 @@ const AGENTS = [
   { key:'scout',  label:'BKTEST SCOUT',   phase:2, sprite:'scout'  },
   { key:'meta',   label:'META-SUPER',     phase:2, sprite:'meta'   },
   { key:'hori',   label:'HORIZON',        phase:2, sprite:'hori'   },
+  { key:'volat',  label:'VOLATILITY',     phase:2, sprite:'volat'   },
+  { key:'sqadv',  label:'SEQUENCE',       phase:2, sprite:'sqadv'  },
+  { key:'tframe', label:'TIMEFRAME',      phase:2, sprite:'tframe' },
 ];
 
 const agentState = {};
@@ -304,6 +307,12 @@ AGENTS.forEach((agent, i) => {
     wanderTimer: Date.now() + i * 200 + Math.random() * 800,
   };
 });
+
+// Override positions for rear agents
+agentPos['tframe'].y = AGENT_Y - 40;
+agentPos['tframe'].x = 380;
+agentPos['sqadv'].y = AGENT_Y - 40;
+agentPos['sqadv'].x = 780;
 
 const agentLayer = document.getElementById('agentLayer');
 AGENTS.forEach((agent, i) => {
