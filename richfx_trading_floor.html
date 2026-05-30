@@ -1114,7 +1114,7 @@ async function fetchLiveData() {
             status:    tf.status === 'TFRAME_OPPOSING' ? 'rejected'
              : tf.status === 'TFRAME_ALIGNED'  ? 'approved'
              : tf.status === 'TFRAME_NEUTRAL'  ? 'idle'
-             : 'dormant',
+             : 'idle',
             summary:   tf.summary || 'Awaiting directional trade.',
             rawOutput: (tf.timeframes_checked || [])
                .map(r => `${r.tf}: ${r.alignment} | QQE ${r.qqe} | Trend ${r.trend}`)
