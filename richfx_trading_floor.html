@@ -360,10 +360,10 @@ requestAnimationFrame(renderLoop);
 
 function getSunTimes() {
   const today = new Date().toDateString();
-  if (_sunTimesDate !== today) {
-    const t       = SunCalc.getTimes(new Date(), SUN_LAT, SUN_LON);
-    _sunTimes     = { sunrise: t.sunrise.getTime(), sunset: t.sunsetStart.getTime() };
+  if (_sunTimesDate !== today || !_sunTimes) {
     _sunTimesDate = today;
+    const t = SunCalc.getTimes(new Date(), SUN_LAT, SUN_LON);
+    _sunTimes = { sunrise: t.sunrise.getTime(), sunset: t.sunsetStart.getTime() };
   }
   return _sunTimes;
 }
