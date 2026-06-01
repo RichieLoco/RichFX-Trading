@@ -1,4 +1,3 @@
-
 <style>
 /* ─── Alternative gesture zoom overlay ─────────────────────────────────────────── */
 #altOverlay {
@@ -377,27 +376,44 @@ requestAnimationFrame(renderLoop);
 // ─── Sun position + sky state ─────────────────────────────────────────────────
 
 function getSunTimes() {
-  const today = new Date().toDateString();
-  if (_sunTimesDate !== today || !_sunTimes) {
-    _sunTimesDate = today;
-    const t = SunCalc.getTimes(new Date(), SUN_LAT, SUN_LON);
-    _sunTimes = { sunrise: t.sunrise.getTime(), sunset: t.sunsetStart.getTime() };
+  const now = new Date();
+  // Use UTC date as a stable numeric key — rolls over at midnight UTC
+  const todayKey = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
+  if (_sunTimesDate === todayKey && _sunTimes) {
+    return _sunTimes; // cache hit
   }
+
+  // Cache miss — recalculate for today
+  const t = SunCalc.getTimes(now, SUN_LAT, SUN_LON);
+  _sunTimes = {
+    sunrise: t.sunrise.getTime(),
+    sunset:  t.sunsetStart.getTime()
+  };
+  _sunTimesDate = todayKey; // store the key, not a string
   return _sunTimes;
 }
 
-function getSkyState() {
-  const { sunrise, sunset } = getSunTimes();
-  const now = Date.now();
+let _currentSkyState = 'day'; // initialised on load
 
-  if (now < sunrise - SUN_BUFFER_MS)               return 'night';  // before dawn
-  if (now < sunrise + SUN_BUFFER_MS)               return 'dawn';   // around sunrise
-  if (now >= sunrise + SUN_BUFFER_MS 
-   && now < sunset - SUN_BUFFER_MS)                return 'day';    // daytime
-  if (now >= sunset - SUN_BUFFER_MS 
-   && now < sunset + SUN_BUFFER_MS)                return 'dusk';   // around sunset
-  return 'night';                                                    // after dusk
+function updateSkyState() {
+  const times = getSunTimes(); // returns cached value, recalcs only on UTC date rollover
+  const now = Date.now();
+  const BUFFER = SUN_BUFFER_MS;
+
+  if      (now < times.sunrise - BUFFER) _currentSkyState = 'night';
+  else if (now < times.sunrise + BUFFER) _currentSkyState = 'dawn';
+  else if (now < times.sunset  - BUFFER) _currentSkyState = 'day';
+  else if (now < times.sunset  + BUFFER) _currentSkyState = 'dusk';
+  else                                   _currentSkyState = 'night';
 }
+
+// Thin wrapper so existing draw functions can call getSkyState() unchanged
+function getSkyState() { return _currentSkyState; }
+
+// Run once on load, then every 60 seconds
+updateSkyState();
+setInterval(updateSkyState, 60 * 1000);
 
 // ─── Draw functions ───────────────────────────────────────────────────────────
 function drawNightOverlay() {
