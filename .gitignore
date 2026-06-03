@@ -31,3 +31,8 @@ core/#*#
 
 # Include stand_south sprites for README showcase
 !sprites/characters/*_stand_south.gif
+
+# Backtest data — not committed (EA configs and results are private)
+config/backtest_sets/*.set
+config/backtest_results/*.csv
+config/backtest_results/*.xml

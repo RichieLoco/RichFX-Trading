@@ -1546,6 +1546,170 @@ async def analyse(req: AnalyseRequest):
         volatility          = volat_result,
     )
 
+class ScoutRecommendRequest(BaseModel):
+    symbol:         str = "EURUSD"
+    timeframe:      str = "H4"
+    set_content:    str = ""
+    ea_description: str = ""
+
+@app.post("/scout/recommend")
+async def scout_backtest_recommend(req: ScoutRecommendRequest):
+    """
+    Scout Mode 2a — Parameter Recommendation.
+    Supply a .set file body as JSON and receive a structured optimisation plan.
+
+    EA .set files can be stored in config/backtest_sets/ (not committed to repo).
+
+    Example Python:
+        import requests, json
+        with open("USDCAD_H4.set") as f:
+            set_content = f.read()
+        r = requests.post("http://localhost:8000/scout/recommend",
+            json={"symbol": "USDCAD", "timeframe": "H4", "set_content": set_content})
+        print(json.dumps(r.json(), indent=2))
+    """
+    symbol         = req.symbol
+    timeframe      = req.timeframe
+    set_content    = req.set_content
+    ea_description = req.ea_description
+    loop = asyncio.get_running_loop()
+
+    if not set_content.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="set_content is required — POST JSON with set_content field."
+        )
+
+    try:
+        from richfx_crew import run_scout_backtest_recommend
+        narrative = await loop.run_in_executor(
+            None,
+            run_scout_backtest_recommend,
+            set_content,
+            symbol,
+            timeframe,
+            ea_description,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Scout recommend failed: {e}")
+
+    # Parse key sections for structured response
+    sections = {}
+    current_key = None
+    for line in narrative.split("\n"):
+        stripped = line.strip()
+        if stripped.endswith(":") and stripped.upper() == stripped or stripped.split(":")[0].isupper():
+            key = stripped.split(":")[0].strip()
+            val = stripped[len(key)+1:].strip()
+            current_key = key
+            sections[current_key] = val
+        elif current_key:
+            sections[current_key] = (sections.get(current_key, "") + "\n" + line).strip()
+
+    return {
+        "symbol":        symbol,
+        "timeframe":     timeframe,
+        "mode":          "recommend",
+        "generated_at":  datetime.now(timezone.utc).isoformat(),
+        "narrative":     narrative,
+        "summary":       sections.get("SUMMARY", ""),
+        "recommended_mode": sections.get("RECOMMENDED_MODE", ""),
+        "estimated_combinations": sections.get("ESTIMATED_COMBINATIONS", ""),
+    }
+
+
+class ScoutAnalyseRequest(BaseModel):
+    symbol:         str = "EURUSD"
+    timeframe:      str = "H4"
+    csv_content:    str = ""
+    ea_description: str = ""
+
+@app.post("/scout/analyse")
+async def scout_backtest_analyse(req: ScoutAnalyseRequest):
+    """
+    Scout Mode 2b — Results Analysis.
+    Supply MT5 optimisation results as JSON and receive confirmed params,
+    noise params, anomaly flags, forward-test set, and next sweep suggestion.
+
+    Results CSVs can be stored in config/backtest_results/ (not committed to repo).
+
+    Example Python:
+        import requests, json
+        with open("USDCAD_H4_results.csv") as f:
+            csv_content = f.read()
+        r = requests.post("http://localhost:8000/scout/analyse",
+            json={"symbol": "USDCAD", "timeframe": "H4", "csv_content": csv_content})
+        print(json.dumps(r.json(), indent=2))
+    """
+    symbol         = req.symbol
+    timeframe      = req.timeframe
+    csv_content    = req.csv_content
+    ea_description = req.ea_description
+    loop = asyncio.get_running_loop()
+
+    if not csv_content.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="csv_content is required — POST JSON with csv_content field."
+        )
+
+    try:
+        from richfx_crew import run_scout_backtest_analyse
+        narrative = await loop.run_in_executor(
+            None,
+            run_scout_backtest_analyse,
+            csv_content,
+            symbol,
+            timeframe,
+            ea_description,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Scout analyse failed: {e}")
+
+    # Parse status for dashboard
+    status = "ANALYSED"
+    narrative_upper = narrative.upper()
+    if "OVERFIT" in narrative_upper or "ANOMAL" in narrative_upper:
+        status = "REVIEW"
+    if "READY FOR FORWARD TESTING" in narrative_upper:
+        status = "READY"
+
+    # Extract summary line
+    summary = ""
+    for line in narrative.split("\n"):
+        if line.strip().upper().startswith("SUMMARY:"):
+            summary = line.split(":", 1)[-1].strip()
+            break
+    if not summary and narrative:
+        summary = narrative.split("\n")[0].strip()
+
+    # Extract recommended forward test set as structured dict
+    forward_set = {}
+    in_fwd_section = False
+    for line in narrative.split("\n"):
+        stripped = line.strip()
+        if "RECOMMENDED_FORWARD_TEST_SET" in stripped.upper():
+            in_fwd_section = True
+            continue
+        if in_fwd_section:
+            if stripped and stripped.split(":")[0].upper() == stripped.split(":")[0] and "=" not in stripped:
+                break  # hit next section
+            if "=" in stripped:
+                parts = stripped.split("=", 1)
+                forward_set[parts[0].strip()] = parts[1].strip()
+
+    return {
+        "symbol":       symbol,
+        "timeframe":    timeframe,
+        "mode":         "analyse",
+        "status":       status,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "narrative":    narrative,
+        "summary":      summary,
+        "forward_test_set": forward_set,
+    }
+
+
 @app.get("/last-analysis")
 async def get_last_analysis(symbol: str = "EURUSD"):
     """

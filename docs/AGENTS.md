@@ -289,9 +289,15 @@ Result: WIN.
 
 | | |
 |:---:|:---|
-| ![](sprites/characters/scout_stand_south.gif) | **Status:** ✅ Active — 500 bars seeded<br>**Model:** `qwen3-14b-8k`<br>**Trigger:** Every 5 minutes (dashboard poll)<br>**Output:** Confidence score 1-10, similar bar count |
+| ![](sprites/characters/scout_stand_south.gif) | **Status:** ✅ Active — 500 bars seeded<br>**Model:** `qwen3-14b-8k`<br>**Trigger:** Every 5 minutes (dashboard poll) + on-demand POST<br>**Output:** Confidence score 1-10 (live) / optimisation plan or results analysis (backtest) |
 
-**Role:** Compares current signal conditions against historical bar patterns to produce a confidence score. Finds similar QQE range (±5) and trend direction bars from the last 500 bars and assesses signal consistency.
+Scout operates in two modes:
+
+---
+
+#### Mode 1 — Live Signal Pattern Matching (existing)
+
+Compares current signal conditions against historical bar patterns to produce a confidence score. Finds similar QQE range (±5) and trend direction bars from the last 500 bars and assesses signal consistency.
 
 **Output format:**
 ```
@@ -301,9 +307,55 @@ confidence,N
 
 **Sprite state mapping:** confidence ≥ 7 → cheer, 4-6 → idle, 1-3 → anxious
 
-**Advisory value:** Historical pattern matching — "53 similar setups found, signals consistent in 7/10 cases." Currently based on signal consistency only (no outcome data yet).
+**Advisory value:** Historical pattern matching — "53 similar setups found, signals consistent in 7/10 cases." Currently based on signal consistency only (no outcome data yet). Grows significantly as sequences close and outcomes get tagged to bars.
 
-**Intervention value:** Could weight lot size recommendations — high Scout confidence = standard lots, low confidence = minimum lots or skip. Grows significantly as sequences close and outcomes get tagged to bars. ✅ (grows to ✅✅ with outcome data)
+---
+
+#### Mode 2a — Backtest Parameter Recommendation (`POST /scout/recommend`)
+
+Supply a `.set` file and receive a structured optimisation plan. Scout identifies:
+- **Tier 1 parameters** — highest impact, sweep first (BB period/deviation, breakeven buffer, trailing settings, max trades)
+- **Tier 2 parameters** — secondary pass after Tier 1 (QQE settings, entry distance)
+- **Lock fixed** — parameters to keep constant and why (enabling flags, visualisation settings)
+- **Estimated combination count** — so you know what you're in for before starting
+- **Recommended mode** — Fast genetic for first pass, Slow complete for final verification only
+
+Scout is pair-aware — EURJPY parameters get scaled for JPY pip values, commodity pairs get appropriate volatility context.
+
+**EA set files** should be stored in `config/backtest_sets/` (not committed to repo).
+
+```bash
+curl -s -X POST "http://localhost:8000/scout/recommend" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "symbol=EURJPY" \
+  --data-urlencode "timeframe=H4" \
+  --data-urlencode "set_content=$(cat config/backtest_sets/EURJPY_H4.set)"
+```
+
+---
+
+#### Mode 2b — Backtest Results Analysis (`POST /scout/analyse`)
+
+Supply MT5 optimisation results (tab-separated export from Strategy Tester) and receive:
+- **Confirmed parameters** — constant across all top results = true signal
+- **Noise parameters** — vary without affecting outcome = can be set to simple defaults
+- **Anomaly flags** — genetic convergence (all results identical), overfitting risk, too few trades
+- **Recommended forward-test set** — minimal parameter set using only confirmed signal params
+- **Next sweep suggestion** — zoom-in range for a second pass, or "Ready for forward testing"
+
+**Results files** should be stored in `config/backtest_results/` (not committed to repo).
+
+```bash
+curl -s -X POST "http://localhost:8000/scout/analyse" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "symbol=USDCAD" \
+  --data-urlencode "timeframe=H4" \
+  --data-urlencode "csv_content=$(cat config/backtest_results/USDCAD_H4_opt.csv)"
+```
+
+**Response status values:** `ANALYSED` | `REVIEW` (anomalies detected) | `READY` (ready for forward testing)
+
+**Advisory value:** Turns manual backtest interpretation into a structured workflow. Identifies what the optimiser actually found vs noise, and produces a clean forward-test set. ✅✅
 
 ---
 

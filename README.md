@@ -141,7 +141,9 @@ All served by FastAPI on port 8000.
 | `/decisions` | GET | Crew decision log from SQLite |
 | `/sequences` | GET | Completed sequence records from SQLite |
 | `/journalist` | GET | Recent sequence narratives |
-| `/scout` | GET | Run Backtest Scout analysis |
+| `/scout` | GET | Run Backtest Scout live signal analysis |
+| `/scout/recommend` | POST | Scout Mode 2a — parameter sweep plan from .set file |
+| `/scout/analyse` | POST | Scout Mode 2b — results analysis from optimisation CSV |
 | `/meta` | GET | Run Meta-Supervisor analysis |
 | `/animate` | POST | Queue alt gesture for a female agent |
 | `/pending-animation` | GET | Dashboard polls for queued animations |

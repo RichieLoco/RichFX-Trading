@@ -788,5 +788,189 @@ def main():
         time.sleep(POLL_INTERVAL)
 
 
+# ─── Scout Backtest Mode — Parameter Recommendation ──────────────────────────
+
+llm_scout_backtest = LLM(model="ollama/qwen3-14b-8k", base_url=OLLAMA_URL, temperature=0.1)
+
+def create_scout_backtest_agent():
+    return Agent(
+        role="Backtest Parameter Advisor",
+        goal=(
+            "Analyse a MetaTrader 5 EA .set file and recommend the most impactful "
+            "parameters to optimise, with appropriate ranges and step sizes. "
+            "Produce a clear, actionable parameter sweep plan."
+        ),
+        backstory=(
+            "Quantitative analyst and algorithmic trading specialist with deep knowledge "
+            "of MetaTrader 5 EAs. Understands that enabling flags must be set before "
+            "their associated parameters have any effect. Knows that fewer, well-chosen "
+            "parameters produce more interpretable results than sweeping everything at once. "
+            "Conservative — always warns about overfitting and recommends genetic algorithm "
+            "mode for large search spaces."
+        ),
+        llm=llm_scout_backtest, verbose=False, allow_delegation=False,
+    )
+
+
+def run_scout_backtest_recommend(set_content: str, symbol: str, timeframe: str,
+                                  ea_description: str = "") -> str:
+    """
+    Analyse a .set file and recommend parameters to optimise.
+    set_content: raw text of the .set file
+    symbol: e.g. 'EURJPY'
+    timeframe: e.g. 'H4'
+    ea_description: optional plain-English description of how the EA works
+    """
+    agent = create_scout_backtest_agent()
+
+    ctx = (
+        f"Symbol: {symbol}  Timeframe: {timeframe}\n\n"
+    )
+    if ea_description:
+        ctx += f"EA description:\n{ea_description}\n\n"
+
+    ctx += f".set file contents:\n{set_content}\n\n"
+
+    pair_notes = ""
+    if "JPY" in symbol or "XAU" in symbol:
+        pair_notes = (
+            f"Note: {symbol} uses JPY/XAU pip scale — spread and pip-distance parameters "
+            "should be scaled accordingly (roughly 100x compared to standard pairs).\n"
+        )
+    elif "CAD" in symbol or "NZD" in symbol or "AUD" in symbol:
+        pair_notes = (
+            f"Note: {symbol} is a commodity-correlated pair with moderate volatility. "
+            "Slightly tighter trailing parameters than EURUSD are appropriate.\n"
+        )
+
+    task = Task(
+        description=(
+            f"Analyse this EA configuration and produce a backtest optimisation plan:\n\n{ctx}\n"
+            f"{pair_notes}\n"
+            "Rules:\n"
+            "1. Flag parameters are PREREQUISITES — if InpUseDynamicStop=false, "
+            "   InpDynamicStopDistance has no effect. Always pair flags with their parameters.\n"
+            "2. Recommend TIER 1 (highest impact, sweep first) and TIER 2 (secondary pass).\n"
+            "3. For each recommended parameter give: current value, suggested range, step size, reason.\n"
+            "4. List parameters to LOCK FIXED and why.\n"
+            "5. Estimate rough combination count for Tier 1 sweep.\n"
+            "6. If combination count >50,000 recommend genetic algorithm mode.\n"
+            "7. Recommend backtest mode: 'Fast genetic + Open prices only' for first pass, "
+            "   'Slow complete + 1 min OHLC' only for final verification of top candidates.\n\n"
+            "Output format (plain text, no markdown):\n"
+            "SUMMARY: one sentence overview of what matters most for this pair\n\n"
+            "TIER_1_PARAMS:\n"
+            "[param name] | current: X | range: A→B | step: C | reason: ...\n"
+            "(repeat for each Tier 1 param)\n\n"
+            "TIER_2_PARAMS:\n"
+            "[param name] | current: X | range: A→B | step: C | reason: ...\n"
+            "(repeat for each Tier 2 param)\n\n"
+            "LOCK_FIXED:\n"
+            "[param name] = value | reason: ...\n"
+            "(repeat for each locked param)\n\n"
+            "ESTIMATED_COMBINATIONS: N (Tier 1 only)\n\n"
+            "RECOMMENDED_MODE: [Fast genetic / Slow complete] — reason\n\n"
+            "No preamble. Plain text only."
+        ),
+        expected_output=(
+            "SUMMARY, TIER_1_PARAMS, TIER_2_PARAMS, LOCK_FIXED, "
+            "ESTIMATED_COMBINATIONS, RECOMMENDED_MODE in plain text."
+        ),
+        agent=agent,
+    )
+
+    from crewai import Crew, Process
+    result_obj = Crew(
+        agents=[agent], tasks=[task],
+        process=Process.sequential, verbose=False
+    ).kickoff()
+    raw = getattr(result_obj, "raw", str(result_obj)).strip()
+    # Strip any thinking tokens
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+    raw = re.sub(r"Thinking\.\.\..*?\.\.\.done thinking\.", "", raw, flags=re.DOTALL).strip()
+    return raw
+
+
+# ─── Scout Backtest Mode — Results Analysis ───────────────────────────────────
+
+def run_scout_backtest_analyse(csv_content: str, symbol: str, timeframe: str,
+                                ea_description: str = "") -> str:
+    """
+    Analyse MT5 optimisation results CSV and identify best parameter set.
+    csv_content: raw text of the MT5 optimisation results (tab-separated)
+    symbol: e.g. 'USDCAD'
+    timeframe: e.g. 'H4'
+    ea_description: optional plain-English description of how the EA works
+    """
+    agent = create_scout_backtest_agent()
+
+    # Parse the CSV to extract columns and top rows — avoid flooding context
+    lines = [l for l in csv_content.strip().split('\n') if l.strip()]
+    header = lines[0] if lines else ""
+    data_rows = lines[1:] if len(lines) > 1 else []
+
+    # Limit to 50 rows for context window — top results are sorted by profit
+    sample_rows = data_rows[:50]
+    total_rows = len(data_rows)
+
+    ctx = (
+        f"Symbol: {symbol}  Timeframe: {timeframe}\n"
+        f"Total result rows: {total_rows}  (showing top {len(sample_rows)})\n\n"
+    )
+    if ea_description:
+        ctx += f"EA description:\n{ea_description}\n\n"
+
+    ctx += f"Header:\n{header}\n\nTop results:\n"
+    ctx += "\n".join(sample_rows)
+
+    task = Task(
+        description=(
+            f"Analyse these MT5 Strategy Tester optimisation results:\n\n{ctx}\n\n"
+            "Your job:\n"
+            "1. IDENTIFY which parameters are CONSTANT across all top results "
+            "   — these are the true signal (the optimiser converged on them).\n"
+            "2. IDENTIFY which parameters VARY without affecting profit "
+            "   — these are noise and can be set to any value.\n"
+            "3. FLAG any anomalies — e.g. all results identical (genetic convergence), "
+            "   suspiciously high profit factor (overfitting risk), too few trades.\n"
+            "4. RECOMMEND a minimal forward-test .set configuration using only the "
+            "   confirmed signal parameters, setting noise params to simple/safe defaults.\n"
+            "5. SUGGEST next backtest pass if results are inconclusive "
+            "   (e.g. 'zoom in on BB_Period 45-55, step 1').\n\n"
+            "Output format (plain text, no markdown):\n"
+            "SUMMARY: two sentences — what the results show and overall quality\n\n"
+            "CONFIRMED_PARAMS:\n"
+            "[param] = value | reason: consistently best across top results\n"
+            "(repeat)\n\n"
+            "NOISE_PARAMS:\n"
+            "[param] | varies without effect — recommended default: X\n"
+            "(repeat)\n\n"
+            "ANOMALIES:\n"
+            "[description of any red flags — or 'None']\n\n"
+            "RECOMMENDED_FORWARD_TEST_SET:\n"
+            "[param] = value\n"
+            "(list only the parameters that matter — omit noise)\n\n"
+            "NEXT_BACKTEST_SUGGESTION:\n"
+            "[specific follow-up sweep, or 'Ready for forward testing']\n\n"
+            "No preamble. Plain text only."
+        ),
+        expected_output=(
+            "SUMMARY, CONFIRMED_PARAMS, NOISE_PARAMS, ANOMALIES, "
+            "RECOMMENDED_FORWARD_TEST_SET, NEXT_BACKTEST_SUGGESTION in plain text."
+        ),
+        agent=agent,
+    )
+
+    from crewai import Crew, Process
+    result_obj = Crew(
+        agents=[agent], tasks=[task],
+        process=Process.sequential, verbose=False
+    ).kickoff()
+    raw = getattr(result_obj, "raw", str(result_obj)).strip()
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+    raw = re.sub(r"Thinking\.\.\..*?\.\.\.done thinking\.", "", raw, flags=re.DOTALL).strip()
+    return raw
+
+
 if __name__ == "__main__":
     main()

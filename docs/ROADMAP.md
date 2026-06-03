@@ -62,6 +62,10 @@
 
 ## Upcoming
 
+- [x] Scout backtest Mode 2a — `POST /scout/recommend` — parameter sweep plan from .set file
+- [x] Scout backtest Mode 2b — `POST /scout/analyse` — results analysis from optimisation CSV
+- [x] `config/backtest_sets/` and `config/backtest_results/` folders (not committed to repo)
+
 ### Near Term
 
 #### Sequence Advisor (`sqadv`)
