@@ -411,9 +411,16 @@ function updateSkyState() {
 // Thin wrapper so existing draw functions can call getSkyState() unchanged
 function getSkyState() { return _currentSkyState; }
 
-// Run once on load, then every 60 seconds
+// Run once on load, then via Web Worker every 5 minutes.
+// Web Worker runs in a separate thread — not throttled by Chrome when the
+// tab is in the background or the screen is idle. Safe for always-on displays.
 updateSkyState();
-setInterval(updateSkyState, 60 * 1000);
+
+const _skyWorkerBlob = new Blob([
+    'setInterval(() => { postMessage("tick"); }, 300000);'
+], { type: 'application/javascript' });
+const _skyWorker = new Worker(URL.createObjectURL(_skyWorkerBlob));
+_skyWorker.onmessage = () => { updateSkyState(); };
 
 // ─── Draw functions ───────────────────────────────────────────────────────────
 function drawNightOverlay() {
