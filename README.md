@@ -12,13 +12,13 @@ An AI-powered algorithmic trading monitoring system built around a 15-agent crew
 
 All machines live in a **GeeekPi DeskPi RackMate Server T2 Cabinet**, with the trading floor dashboard displayed on a **GeeekPi 7.84" 1280×400 LCD Touchscreen** mounted in the rack — perfectly matching the canvas resolution of the dashboard.
 
-| Machine | Device | RAM | Role |
-|---------|--------|-----|------|
-| **ubuntu-ai** | Minisforum MS-S1 MAX | 128GB unified | Ollama LLM inference, FastAPI crew API, dashboard |
-| **NAS** | Minisforum AI N5 Pro | 96GB | n8n automation, Win11 VM host |
-| **Win11 VM** | LXC on NAS | 8GB | MT5 terminal, bridge, health server, Telegram alerter |
-| **dev-pc** | Minisforum AI X1 470 Pro | 128GB | EA development and MQL5 testing |
-| **RPi4** | Raspberry Pi 4B| 8GB | Cloudflare tunnel → crew.richielo.co |
+| Device                                     | RAM            | Role |
+|--------------------------------------------|----------------|------|
+| Minisforum AI X1 470 Pro, Win 11           | 128GB          | EA development and MQL5 testing |
+| Minisforum MS-S1 MAX, Ubuntu               | 128GB unified  | Ollama LLM inference, FastAPI crew API, dashboard |
+| Minisforum AI N5 Pro NAS, Proxmox          | 96GB           | n8n automation, Win11 VM host |
+| Minisforum AI N5 Pro NAS (via LXC), Win 11 | 8GB            | MT5 terminal, bridge, health server, Telegram alerter |
+| Raspberry Pi 4B, Raspberry Pi OS           | 8GB            | Cloudflare tunnel → crew.richielo.co |
 
 All machines connected via **Tailscale** mesh VPN.
 
