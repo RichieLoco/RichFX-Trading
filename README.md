@@ -106,21 +106,14 @@ The trading floor has 13 agents across two phases:
 |:---:|:---:|:---:|:---:|
 | ![](sprites/characters/news_stand_south.gif) | ![](sprites/characters/journ_stand_south.gif) | ![](sprites/characters/scout_stand_south.gif) | ![](sprites/characters/meta_stand_south.gif) |
 
-| <sub>Horizon</sub> | <sub>Timeframe</sub> | <sub>Volatility</sub> | |
+| <sub>Horizon</sub> | <sub>Timeframe</sub> | <sub>Volatility</sub> | <sub>Sequence Advisor</sub> |
 |:---:|:---:|:---:|:---:|
-| ![](sprites/characters/hori_stand_south.gif) | ![](sprites/characters/tframe_stand_south.gif) | ![](sprites/characters/volat_stand_south.gif) | |
-
-> **Horizon** — Scans signal quality across all monitored pairs across H4 and H1 timeframes. Recommends which pairs to promote to full EA trading. Powered by `gemma4-e4b-8k`.
-> **Timeframe Analyst** (`tframe`) — Checks H8 trend alignment before H4 entries. Flags counter-trend DCA sequences — the biggest cause of deep drawdown.
-> **Volatility Guard** (`volat`) — ATR-based spike detection. Flags entries during flash crashes, news spikes, and open-of-week gaps.
+| ![](sprites/characters/hori_stand_south.gif) | ![](sprites/characters/tframe_stand_south.gif) | ![](sprites/characters/volat_stand_south.gif) | ![](sprites/characters/sqadv_stand_south.gif) |
 
 ### Coming Soon
 
-| <sub>Sequence Advisor</sub> | | | |
-|:---:|:---:|:---:|:---:|
-| ![](sprites/characters/sqadv_stand_south.gif) | | | |
-
-> **Sequence Advisor** (`sqadv`) — Monitors open sequences and recommends early closes when conditions deteriorate. Requires 20+ completed sequences.
+#### Sequence Advisor
+> **Sequence** (`sqadv`) — Monitors open sequences and recommends early closes when conditions deteriorate. Requires 20+ completed sequences.
 
 ---
 
@@ -145,7 +138,7 @@ All served by FastAPI on port 8000.
 | `/scout/recommend` | POST | Scout Mode 2a — parameter sweep plan from .set file |
 | `/scout/analyse` | POST | Scout Mode 2b — results analysis from optimisation CSV |
 | `/meta` | GET | Run Meta-Supervisor analysis |
-| `/animate` | POST | Queue alt gesture for a female agent |
+| `/animate` | POST | Queue alt gesture for some agents |
 | `/pending-animation` | GET | Dashboard polls for queued animations |
 | `/horizon` | GET | Run Horizon cross-pair analysis (~30s, runs every H4 bar via n8n) |
 | `/horizon/last` | GET | Most recent cached Horizon result (instant) |
@@ -251,7 +244,7 @@ TELEGRAM_CHAT_ID=your_chat_id
 - Dynamic dusk/dawn using SunCalc.js — accurate sunrise/sunset for your location
 - Weather system (sun/cloud/rain), night overlay
 - Agent overlay panels with LLM summary and full output
-- Alt gesture animation — female agents zoom from bottom on request
+- Alt gesture animation — some agents zoom from bottom on request
 - Analysis cache persisted to disk — agents active instantly after restart
 - Automatic 5-minute data refresh (n8n owns analysis trigger)
 - Timeframe Analyst — H8 alignment check on every H4 analysis
@@ -270,7 +263,7 @@ Each agent requires these animation files:
 {agent}_walk_south/north/east/west.gif
 {agent}_cheer.gif   {agent}_cry.gif
 {agent}_point.gif   {agent}_anxious.gif
-{agent}_alt.gif     (female agents only — zoom gesture)
+{agent}_alt.gif     (some agents only — zoom gesture)
 ```
 
 ---
