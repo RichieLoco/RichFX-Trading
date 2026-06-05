@@ -17,6 +17,21 @@ from datetime import datetime, timezone, timedelta
 _cache = {}
 _cache_lock = threading.Lock()
 
+LIVE_FILE = r"C:\__RichStuff\FX\trading_system\data\signals\live.json"
+
+# ---------------------------------------------------------------------------
+# Live data — written every ~10s by mt5_bridge.py, read here on demand
+# ---------------------------------------------------------------------------
+def get_live_data() -> dict:
+    """Read live account + position snapshot written by mt5_bridge."""
+    try:
+        with open(LIVE_FILE) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"error": "live.json not found — mt5_bridge may not be running"}
+    except Exception as e:
+        return {"error": f"Could not read live.json: {e}"}
+
 HISTORY_FILE = r"C:\__RichStuff\FX\trading_system\data\signals\history.json"
 DB_PATH     = r"C:\__RichStuff\FX\trading_system\data\signals\richfx.db"
 
@@ -165,6 +180,10 @@ class HealthHandler(BaseHTTPRequestHandler):
                 })
             except Exception as e:
                 self._respond(500, {"error": str(e)})
+        elif parsed.path == "/live":
+            data = get_live_data()
+            code = 500 if "error" in data else 200
+            self._respond(code, data)
         else:
             self._respond(404, {"error": "not found"})
 
@@ -189,5 +208,5 @@ if __name__ == "__main__":
             refresh_cache()
     threading.Thread(target=cache_loop, daemon=True).start()
     server = HTTPServer(("0.0.0.0", 8765), HealthHandler)
-    print("[VM Health] Listening on port 8765 — /health + /history")
+    print("[VM Health] Listening on port 8765 — /health + /history + /live")
     server.serve_forever()

@@ -1234,6 +1234,48 @@ async function pollAnimations() {
 }
 
 // ─── Startup ──────────────────────────────────────────────────────────────────
+async function fetchOpenPnl() {
+  // Polls /live every 30s — updates only openPnl, equity, margin, positions for all pairs.
+  // Does not touch bar data, signals or agent states.
+  try {
+    const res = await fetch(`${API_BASE}/live`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.error) return;
+
+    const account   = data.account   || {};
+    const positions = data.positions || [];
+
+    // Update every active pair with the fresh account-level values
+    for (const pair of activePairs) {
+      if (!marketData.pairs[pair.symbol]) continue;
+      const pd = marketData.pairs[pair.symbol];
+
+      // Recalculate per-pair sequence P&L from live positions
+      const magic    = pair.magic;
+      const pairPos  = positions.filter(p => p.magic === magic);
+      const buys     = pairPos.filter(p => p.type === 'buy');
+      const sells    = pairPos.filter(p => p.type === 'sell');
+      const activePos = buys.length ? buys : sells.length ? sells : [];
+      const seqPnl   = activePos.length
+        ? activePos.reduce((s, p) => s + p.profit + (p.swap || 0), 0)
+        : null;
+
+      marketData.pairs[pair.symbol] = {
+        ...pd,
+        openPnl:  account.profit  ?? pd.openPnl,
+        equity:   account.equity  ?? pd.equity,
+        margin:   account.margin  ?? pd.margin,
+        posCount: pairPos.length,
+        seqPnl:   seqPnl !== null ? Math.round(seqPnl * 100) / 100 : pd.seqPnl,
+        seqDir:   buys.length ? 'BUY' : sells.length ? 'SELL' : pd.seqDir,
+      };
+    }
+  } catch (e) {
+    // silent — don't disrupt the main data display on transient errors
+  }
+}
+
 async function init() {
   await fetchSymbols();     // load pair list first — populates activePairs
   loadMockData();            // set initial agent states
@@ -1245,6 +1287,8 @@ async function init() {
   await fetchHorizon();
   setInterval(fetchHorizon, 1800000);  // every 30 minutes — slow poll
   setInterval(fetchLiveData, 300000); // refresh every 5 minutes
+  await fetchOpenPnl();               // first live P&L fetch
+  setInterval(fetchOpenPnl,  30000);  // live P&L refresh every 30 seconds
   setInterval(fetchPerformance, 300000);
   setInterval(fetchJournalist,  300000);
   setInterval(fetchScout,       300000);

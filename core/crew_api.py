@@ -719,6 +719,19 @@ def get_symbols():
     return {"symbols": symbols}
 
 
+@app.get("/live")
+async def get_live():
+    """Proxy live account + open positions from VM health server. No caching — called every 30s by dashboard."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{VM_HEALTH_URL}/live")
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"VM live data unavailable: {e}")
+
+
 @app.get("/history")
 async def get_history(magic: int = 100401, days: int = 30):
     """Proxy closed trade history from VM health server."""

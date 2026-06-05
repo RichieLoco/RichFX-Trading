@@ -274,6 +274,22 @@ def write_state(state: dict):
         tmp2.replace(STATE_FILE)
 
 
+LIVE_FILE    = STATE_DIR / "live.json"
+
+def write_live(account: dict, positions: list):
+    """Write live account + position snapshot on every poll cycle (~10s refresh).
+    Read by vm_health /live endpoint — never gated on new bar close."""
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "account":      account,
+        "positions":    positions,
+    }
+    tmp = LIVE_FILE.with_suffix(".tmp")
+    with open(tmp, "w") as f:
+        json.dump(payload, f, indent=2, default=str)
+    tmp.replace(LIVE_FILE)
+
+
 HISTORY_FILE = STATE_DIR / "history.json"
 
 def write_history(days: int = 90):
@@ -539,6 +555,12 @@ def main():
 
                     state = build_state(sym, tf, args.bars, magic)
                     current_bar = state["meta"]["last_bar_time"]
+
+                    # Write live.json on every poll — not gated on new bar close
+                    # get_open_positions() called unfiltered so ALL positions across
+                    # all pairs are included — dashboard filters by magic per pair
+                    if pair is pairs[0]:
+                        write_live(state["account"], get_open_positions())
 
                     if current_bar != last_bar_times.get(key):
                         write_state(state)
