@@ -463,6 +463,57 @@ NOTE: sample size caveat
 
 ---
 
+---
+
+## Hermes — Conversational Agent (`hermes`)
+
+| | |
+|:---:|:---|
+| ![](sprites/characters/regime_stand_south.gif) | **Model:** `qwen3-14b-8k`<br>**Trigger:** Inbound Telegram message (any time)<br>**Output:** Plain-text natural language answer |
+
+**Role:** Conversational portfolio assistant. Answers natural language questions about
+the trading system by calling live data tools and reasoning over the results. Built on
+CrewAI with a ReAct tool-use loop — Hermes decides which tools to call based on the
+question rather than following a fixed pipeline.
+
+**Tools:**
+- `get_live_portfolio` — live positions and account state from `/live`
+- `get_last_analysis` — latest crew decisions for any pair
+- `get_performance` — 30-day closed trade statistics
+- `get_horizon` — cross-pair signal rankings
+- `get_signal_state` — current QQE, MACD, trend for a symbol
+- `trigger_analysis` — fire a full 4-agent crew analysis (~4 min)
+- `trigger_horizon` — fire a fresh Horizon scan (~60s)
+- `trigger_scout` — run Backtest Scout pattern confidence
+
+**Conversation memory:** Rolling 5-turn history per session. Resets on alerter restart.
+
+**Security:** Only responds to `TELEGRAM_ALLOWED_UID` from `.env`. All other senders silently ignored.
+
+**Concurrency:** Runs on its own executor and lock. Does not block or get blocked by
+the H4 analysis chain. If analysis is running when a query arrives, Hermes notes it
+in the reply but still answers.
+
+**Tool failure handling:** If a tool is unavailable (VM offline, API error), Hermes
+states which tool failed and answers with the data it was able to retrieve.
+
+**Example queries:**
+- "What is my open P&L right now?"
+- "Are there any upcoming news events that could affect EURUSD?"
+- "What is the QQE level on AUDUSD and is it oversold?"
+- "How has the system performed this month?"
+- "Which pairs does Horizon rank highest?"
+- "Run analysis on EURUSD"
+- "What did the crew recommend on the last bar?"
+
+**Advisory value:** On-demand portfolio intelligence without opening the dashboard.
+Particularly useful for checking status from mobile or when away from the trading floor.
+
+**Intervention value:** Can trigger analysis and horizon runs on demand — bridges the
+gap between the scheduled n8n H4 cycle and ad-hoc decision needs. ✅
+
+---
+
 ## Summary Table
 
 | Agent | Status | Advisory | Intervention | Value Over Time |
@@ -483,3 +534,4 @@ NOTE: sample size caveat
 | *Timeframe Analyst* | 🔲 Planned | High | Highest impact — blocks counter-trend | Stable from day one |
 | *Volatility Guard* | 🔲 Planned | High | Blocks abnormal entries | Stable from day one |
 | *Sequence Advisor* | 🔲 Planned | High | Early close trigger | Grows with sequence history |
+| Hermes | ✅ Active | High | Triggers analysis/horizon on demand | Grows with usage |

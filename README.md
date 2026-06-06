@@ -1,6 +1,6 @@
 # RichFX Trading Floor
 
-An AI-powered algorithmic trading monitoring system built around a 15-agent crew, a live MT5 bridge, and a pixel-art trading floor dashboard. Agents analyse H4 signals in a sequential chain, advisory agents monitor risk conditions, and a centralised SQLite database accumulates decision history for pattern analysis.
+An AI-powered algorithmic trading monitoring system built around a 15-agent crew, a live MT5 bridge, a pixel-art trading floor dashboard, and Hermes — a conversational portfolio assistant accessible via Telegram. Agents analyse H4 signals in a sequential chain, advisory agents monitor risk conditions, and a centralised SQLite database accumulates decision history for pattern analysis.
 
 > 🔴 **Live demo:** [crew.richielo.co](https://crew.richielo.co) *(Cloudflare Access — request access via the repo)*
 
@@ -33,6 +33,7 @@ All machines connected via **Tailscale** mesh VPN.
 │  │     qwen3-14b-8k, deepseek-r1-14b-8k                         │
 │  │     qwen25-14b-8k, gemma4-e4b-8k (~50GB loaded)              │
 │  ├── FastAPI Crew API                       :8000               │
+│  ├── Hermes Agent (hermes_agent.py)         via /ask            │
 │  └── Trading Floor Dashboard               /ui/                 │
 ├─────────────────────────────────────────────────────────────────┤
 │  NAS — Minisforum AI N5 Pro (96GB)                              │
@@ -41,7 +42,7 @@ All machines connected via **Tailscale** mesh VPN.
 │        ├── MT5 Terminal + QQE_DCA EA                            │
 │        ├── mt5_bridge.py    (state + DB writer)                 │
 │        ├── vm_health.py     :8765                               │
-│        ├── telegram_alerter.py                                  │
+│        ├── telegram_alerter.py  (alerts + Hermes inbound)       │
 │        └── richfx.db        (centralised SQLite)                │
 ├─────────────────────────────────────────────────────────────────┤
 │  Raspberry Pi                                                   │
@@ -139,6 +140,8 @@ All served by FastAPI on port 8000.
 | `/scout/analyse` | POST | Scout Mode 2b — results analysis from optimisation CSV |
 | `/meta` | GET | Run Meta-Supervisor analysis |
 | `/animate` | POST | Queue alt gesture for some agents |
+| `/live` | GET | Live account + open positions from MT5 (no cache, proxied from vm_health) |
+| `/ask` | POST | Hermes conversational query — natural language portfolio questions answered by gemma4-e4b-8k |
 | `/pending-animation` | GET | Dashboard polls for queued animations |
 | `/horizon` | GET | Run Horizon cross-pair analysis (~30s, runs every H4 bar via n8n) |
 | `/horizon/last` | GET | Most recent cached Horizon result (instant) |
@@ -181,7 +184,47 @@ Dashboard (browser) — read-only, never triggers /analyse
     ├── GET /scout           (pattern confidence score)
     ├── GET /journalist      (sequence narratives)
     ├── GET /horizon/last    (pair expansion recommendations, cached — n8n refreshes every H4 bar)
+    ├── GET /live              (live P&L + positions, polls 30s)
+    ├── GET /live              (live P&L + positions, polls 30s)
     └── GET /pending-animation (alt gesture queue, polls 3s)
+```
+
+---
+
+## Hermes — Conversational Portfolio Assistant
+
+Hermes is a CrewAI agent (`qwen3-14b-8k`) accessible via the Shikigami Telegram bot.
+Send any natural language message to the bot and Hermes will fetch the relevant data
+and answer. Stateful — maintains a rolling 5-turn conversation history per session.
+
+**Security:** Hermes only responds to messages from `TELEGRAM_ALLOWED_UID` (set in `.env`).
+All other senders are silently ignored.
+
+**Tools available to Hermes:**
+
+| Tool | Data source | Example question |
+|------|-------------|-----------------|
+| `get_live_portfolio` | `/live` | "What is my open P&L?" |
+| `get_last_analysis` | `/last-analysis` | "What does the crew think about EURUSD?" |
+| `get_performance` | `/performance` | "What is my win rate this month?" |
+| `get_horizon` | `/horizon/last` | "Which pairs look best right now?" |
+| `get_signal_state` | `/state` | "What is the QQE on AUDUSD?" |
+| `trigger_analysis` | `POST /analyse` | "Run analysis on EURUSD" |
+| `trigger_horizon` | `GET /horizon` | "Run a fresh Horizon scan" |
+| `trigger_scout` | `GET /scout` | "What is the pattern confidence?" |
+
+**Concurrency:** Hermes runs on its own executor and lock — queries run concurrently
+with H4 analysis. If analysis is running when a query arrives, Hermes notes this
+in its reply but still answers.
+
+**Flow:**
+```
+Telegram message → telegram_alerter.py (UID check)
+    → POST /ask → crew_api.py
+        → hermes_agent.py (CrewAI agent, qwen3-14b-8k)
+            → tool calls as needed
+        → plain text reply
+    → Telegram reply
 ```
 
 ---
@@ -223,9 +266,14 @@ Correlation matrix for the Correlation agent. Reloaded on every analysis — no 
 
 ### `.env` (not committed)
 ```
-TELEGRAM_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
+TELEGRAM_TOKEN=your_bot_token_from_botfather
+TELEGRAM_CHAT_ID=your_outbound_chat_id
+TELEGRAM_ALLOWED_UID=your_telegram_user_id_from_userinfobot
+CREW_API_URL=http://<ubuntu-ai-tailscale-ip>:8000
+OLLAMA_BASE_URL=http://localhost:11434
 ```
+
+`TELEGRAM_ALLOWED_UID` locks Hermes to your Telegram account only. Get it from @userinfobot. Never commit this file.
 
 ---
 
@@ -239,6 +287,7 @@ TELEGRAM_CHAT_ID=your_chat_id
 **Features:**
 - 16 pixel-art agents with walk/stand/action/cheer/cry/anxious animations
 - TV screen: QQE, sequence P&L, open P&L, closed P&L, equity, margin
+- Open P&L and sequence P&L refresh every 30 seconds via live MT5 poll (not bar-close dependent)
 - TV screen auto-rotates across active pairs every 30 seconds (pauses on manual click)
 - UTC analogue clock, market open/closed indicator
 - Dynamic dusk/dawn using SunCalc.js — accurate sunrise/sunset for your location
@@ -250,6 +299,7 @@ TELEGRAM_CHAT_ID=your_chat_id
 - Timeframe Analyst — H8 alignment check on every H4 analysis
 - Volatility Guard — ATR ratio vs 30-bar average on every analysis
 - Horizon — H4 and H1 rankings shown in overlay, refreshes every bar
+- Hermes (Shikigami) — conversational Telegram interface for natural language portfolio queries, action triggers (analysis, horizon, scout), and stateful conversation with rolling 5-turn memory
 
 ---
 
