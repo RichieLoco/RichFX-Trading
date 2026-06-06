@@ -789,9 +789,7 @@ async def ask_hermes(req: AskRequest):
         if action_str:
             reply = (
                 f"[Note: {action_str} was in progress when your query arrived "
-                f"— some data may be from the previous bar]
-
-{reply}"
+                f"- some data may be from the previous bar]\n\n{reply}"
             )
         return {"reply": reply}
     except Exception as e:
