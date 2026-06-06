@@ -39,10 +39,20 @@ sys.path.insert(0, str(Path(__file__).parent))
 from indicators import get_signal_state
 
 # ---------------------------------------------------------------------------
-# CONFIG — edit these
+# CONFIG — loaded from .env (never hardcode credentials in source)
+# Required .env keys:
+#   TELEGRAM_TOKEN       — bot token from @BotFather
+#   TELEGRAM_CHAT_ID     — your chat ID from @userinfobot
+#   TELEGRAM_ALLOWED_UID — your Telegram user ID (locks Hermes to you only)
+#   CREW_API_URL         — e.g. http://<ubuntu-ai-tailscale-ip>:8000
 # ---------------------------------------------------------------------------
-TELEGRAM_TOKEN   = "YOUR_BOT_TOKEN_HERE"
-TELEGRAM_CHAT_ID = "YOUR_CHAT_ID_HERE"
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
+
+TELEGRAM_TOKEN       = os.getenv("TELEGRAM_TOKEN",       "")
+TELEGRAM_CHAT_ID     = os.getenv("TELEGRAM_CHAT_ID",     "")
+TELEGRAM_ALLOWED_UID = int(os.getenv("TELEGRAM_ALLOWED_UID", "0"))
+CREW_API_URL         = os.getenv("CREW_API_URL",         "http://localhost:8000")
 
 # ---------------------------------------------------------------------------
 # Config loaded from watchlist.json — edit that file to add new pairs
@@ -74,7 +84,7 @@ POLL_INTERVAL_SECS     = _settings.get("poll_interval_secs",     60)
 # ---------------------------------------------------------------------------
 def send_telegram(message: str, silent: bool = False) -> bool:
     """Send a Telegram message. Returns True on success."""
-    if TELEGRAM_TOKEN == "YOUR_BOT_TOKEN_HERE":
+    if not TELEGRAM_TOKEN:  # not configured — print locally instead
         print(f"[TELEGRAM] {message}")
         return True
 
@@ -91,6 +101,92 @@ def send_telegram(message: str, silent: bool = False) -> bool:
     except Exception as e:
         print(f"[ERROR] Telegram send failed: {e}")
         return False
+
+
+# ---------------------------------------------------------------------------
+# Hermes — conversational query handler (CrewAI agent via /ask endpoint)
+# ---------------------------------------------------------------------------
+# Rolling conversation history per session (resets on alerter restart)
+_hermes_history  = []
+_HERMES_MAX_TURNS = 5
+
+
+def hermes_ask(user_message: str) -> str:
+    """Send a query to the Hermes CrewAI agent via crew_api /ask."""
+    global _hermes_history
+    try:
+        r = requests.post(
+            f"{CREW_API_URL}/ask",
+            json={
+                "message": user_message,
+                "history": _hermes_history[-(_HERMES_MAX_TURNS * 2):],
+            },
+            timeout=120,
+        )
+        if r.ok:
+            reply = r.json().get("reply", "No response from Hermes.")
+        else:
+            reply = f"Hermes API error: HTTP {r.status_code}"
+    except requests.exceptions.Timeout:
+        reply = "Hermes timed out — the agent may still be running. Try again shortly."
+    except Exception as e:
+        reply = f"Could not reach Hermes: {e}"
+
+    # Update rolling history
+    _hermes_history.append({"role": "user",      "content": user_message})
+    _hermes_history.append({"role": "assistant", "content": reply})
+    if len(_hermes_history) > _HERMES_MAX_TURNS * 2:
+        _hermes_history = _hermes_history[-(_HERMES_MAX_TURNS * 2):]
+
+    return reply
+
+
+def get_telegram_updates(offset: int = 0) -> list:
+    """Poll Telegram for new inbound messages."""
+    if not TELEGRAM_TOKEN:
+        return []
+    try:
+        r = requests.get(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates",
+            params={"offset": offset, "timeout": 10, "allowed_updates": ["message"]},
+            timeout=15,
+        )
+        if r.ok:
+            return r.json().get("result", [])
+    except Exception:
+        pass
+    return []
+
+
+def handle_inbound_messages(offset: int) -> int:
+    """Process inbound Telegram messages. Returns updated offset."""
+    updates = get_telegram_updates(offset)
+    for update in updates:
+        offset = update["update_id"] + 1
+        msg    = update.get("message", {})
+        uid    = msg.get("from", {}).get("id", 0)
+        text   = msg.get("text", "").strip()
+
+        if not text:
+            continue
+
+        # Security: only respond to the authorised user
+        if TELEGRAM_ALLOWED_UID and uid != TELEGRAM_ALLOWED_UID:
+            print(f"[Hermes] Ignored message from unauthorised UID {uid}")
+            continue
+
+        print(f"[Hermes] Query: {text[:80]}")
+
+        # Acknowledge immediately so the user knows Hermes received it
+        send_telegram("Hermes is thinking...")
+
+        # All messages go straight to the CrewAI agent.
+        # The agent decides which tools to call based on the question —
+        # no keyword routing needed here.
+        reply = hermes_ask(text)
+        send_telegram(reply)
+
+    return offset
 
 
 # ---------------------------------------------------------------------------
@@ -316,8 +412,13 @@ def main():
         f"Broker time: {broker_time_str()}"
     )
 
+    _update_offset = 0  # Telegram update offset for inbound polling
+
     while True:
         try:
+            # Poll for inbound Hermes queries every loop cycle
+            _update_offset = handle_inbound_messages(_update_offset)
+
             market_open = is_market_open()
 
             # Market state change notification

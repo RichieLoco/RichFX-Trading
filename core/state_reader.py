@@ -25,12 +25,17 @@ from datetime import datetime, timezone
 from typing import Callable, Optional
 
 # ---------------------------------------------------------------------------
-# Config — matches your Tailscale + SSH setup
+# Config — loaded from .env (falls back to defaults for local dev)
 # ---------------------------------------------------------------------------
-VM_HOST      = "100.80.62.2"
-VM_USER      = "richi-rdp"
-STATE_FILE   = "C:/__RichStuff/FX/trading_system/data/signals/state.json"
-SSH_TIMEOUT  = 10   # seconds
+import os
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+
+VM_HOST     = os.getenv("VM_HOST",      "")
+VM_USER     = os.getenv("VM_USER", "")
+VM_BASE     = os.getenv("VM_BASE_PATH", "C:/__RichStuff/FX")
+STATE_FILE  = f"{VM_BASE}/trading_system/data/signals/state.json"
+SSH_TIMEOUT = 10   # seconds
 
 
 # ---------------------------------------------------------------------------

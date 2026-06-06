@@ -647,10 +647,39 @@ def fetch_state_cached(symbol: str, timeframe: str) -> dict:
 _analyse_executor = ThreadPoolExecutor(max_workers=1)
 _analyse_lock     = threading.Lock()
 
+# Hermes has its own executor + lock — queries run concurrently with analysis
+_hermes_executor  = ThreadPoolExecutor(max_workers=1)
+_hermes_lock      = threading.Lock()
+
+# Tracks what is currently running — Hermes reads this to give status messages
+_current_action: dict = {}
+
+def _set_current_action(action_type: str, symbol: str = ""):
+    global _current_action
+    _current_action = {
+        "type":       action_type,
+        "symbol":     symbol,
+        "started_at": datetime.now(timezone.utc),
+    }
+
+def _clear_current_action():
+    global _current_action
+    _current_action = {}
+
+def get_current_action_str() -> str:
+    """Human-readable description of what is currently running, or empty string."""
+    if not _current_action:
+        return ""
+    elapsed = (datetime.now(timezone.utc) - _current_action["started_at"]).seconds
+    sym = f" for {_current_action['symbol']}" if _current_action.get("symbol") else ""
+    return f"{_current_action['type']}{sym} (running {elapsed}s)"
+
 def run_crew_for_state(state: dict) -> tuple:
     """Run the 3-agent crew. Raises RuntimeError if already running."""
     if not _analyse_lock.acquire(blocking=False):
         raise RuntimeError("Analysis already in progress — skipping")
+    symbol = state.get("meta", {}).get("symbol", "")
+    _set_current_action("analysis", symbol)
     try:
         from richfx_crew import (
             state_to_context, create_regime_agent, create_risk_governor,
@@ -680,6 +709,7 @@ def run_crew_for_state(state: dict) -> tuple:
                 })
         return result, outputs, extract_compact
     finally:
+        _clear_current_action()
         _analyse_lock.release()
 
 # ---------------------------------------------------------------------------
@@ -717,6 +747,55 @@ def get_symbols():
             detail=f"No symbols found. Check {CONFIG_PATH} exists and has active entries.",
         )
     return {"symbols": symbols}
+
+
+# ---------------------------------------------------------------------------
+# Hermes /ask endpoint — CrewAI agent with tools
+# ---------------------------------------------------------------------------
+class AskRequest(BaseModel):
+    message: str
+    history: list = []   # rolling conversation history, max 5 turns
+
+@app.post("/ask")
+async def ask_hermes(req: AskRequest):
+    """
+    Hermes conversational agent endpoint.
+    Runs a CrewAI agent (qwen3-14b-8k) with live data tools.
+    If analysis is in progress, warns the user immediately then runs
+    the query once the executor is free.
+    """
+    loop = asyncio.get_event_loop()
+
+    # Snapshot what is running at query time — used for warning message
+    action_str = get_current_action_str()
+    if action_str:
+        print(f"[Hermes] Query queued — {action_str} in progress")
+
+    def _run():
+        if not _hermes_lock.acquire(blocking=True, timeout=300):
+            return "Hermes is busy with another query — please try again shortly."
+        _set_current_action("hermes_query")
+        try:
+            from hermes_agent import run_hermes_query
+            return run_hermes_query(req.message, req.history)
+        except Exception as e:
+            return f"Hermes error: {e}"
+        finally:
+            _clear_current_action()
+            _hermes_lock.release()
+
+    try:
+        reply = await loop.run_in_executor(_hermes_executor, _run)
+        if action_str:
+            reply = (
+                f"[Note: {action_str} was in progress when your query arrived "
+                f"— some data may be from the previous bar]
+
+{reply}"
+            )
+        return {"reply": reply}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Hermes unavailable: {e}")
 
 
 @app.get("/live")
