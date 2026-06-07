@@ -1,8 +1,9 @@
+# -*- coding: utf-8 -*-
 """
 RichFX Telegram Alerter
 ========================
 Lightweight always-on alerter running on the Windows VM.
-No LLM required — pure threshold checks.
+No LLM required -- pure threshold checks.
 Runs alongside mt5_bridge.py, survives MS-S1 MAX being off.
 
 Features:
@@ -16,7 +17,7 @@ Features:
 - Telegram delivery via bot
 
 Setup:
-1. Create a Telegram bot via @BotFather → get token
+1. Create a Telegram bot via @BotFather -> get token
 2. Get your chat ID via @userinfobot
 3. Set TELEGRAM_TOKEN and TELEGRAM_CHAT_ID below
 4. python telegram_alerter.py
@@ -39,12 +40,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 from indicators import get_signal_state
 
 # ---------------------------------------------------------------------------
-# CONFIG — loaded from .env (never hardcode credentials in source)
+# CONFIG -- loaded from .env (never hardcode credentials in source)
 # Required .env keys:
-#   TELEGRAM_TOKEN       — bot token from @BotFather
-#   TELEGRAM_CHAT_ID     — your chat ID from @userinfobot
-#   TELEGRAM_ALLOWED_UID — your Telegram user ID (locks Hermes to you only)
-#   CREW_API_URL         — e.g. http://<ubuntu-ai-tailscale-ip>:8000
+#   TELEGRAM_TOKEN       -- bot token from @BotFather
+#   TELEGRAM_CHAT_ID     -- your chat ID from @userinfobot
+#   TELEGRAM_ALLOWED_UID -- your Telegram user ID (locks Hermes to you only)
+#   CREW_API_URL         -- e.g. http://<ubuntu-ai-tailscale-ip>:8000
 # ---------------------------------------------------------------------------
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -55,7 +56,7 @@ TELEGRAM_ALLOWED_UID = int(os.getenv("TELEGRAM_ALLOWED_UID", "0"))
 CREW_API_URL         = os.getenv("CREW_API_URL",         "http://localhost:8000")
 
 # ---------------------------------------------------------------------------
-# Config loaded from watchlist.json — edit that file to add new pairs
+# Config loaded from watchlist.json -- edit that file to add new pairs
 # ---------------------------------------------------------------------------
 WATCHLIST_FILE = Path(r"C:\__RichStuff\FX\trading_system\core\watchlist.json")
 STATE_DIR      = Path(r"C:\__RichStuff\FX\trading_system\data\signals")
@@ -69,7 +70,7 @@ def load_config():
         settings = cfg.get("settings", {})
         return pairs, settings
     except Exception as e:
-        print(f"[WARN] Could not load watchlist.json: {e} — using defaults")
+        print(f"[WARN] Could not load watchlist.json: {e} -- using defaults")
         return [{"symbol": "EURUSD", "tf": "H4", "magic": 100401}], {}
 
 _pairs, _settings = load_config()
@@ -84,8 +85,8 @@ POLL_INTERVAL_SECS     = _settings.get("poll_interval_secs",     60)
 # ---------------------------------------------------------------------------
 def send_telegram(message: str, silent: bool = False) -> bool:
     """Send a Telegram message. Returns True on success."""
-    if not TELEGRAM_TOKEN:  # not configured — print locally instead
-        print(f"[TELEGRAM] {message}")
+    if not TELEGRAM_TOKEN:  # not configured -- print locally instead
+        print(f"[TELEGRAM] {message}".encode("ascii", errors="replace").decode("ascii"))
         return True
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -104,7 +105,7 @@ def send_telegram(message: str, silent: bool = False) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Hermes — conversational query handler (CrewAI agent via /ask endpoint)
+# Hermes -- conversational query handler (CrewAI agent via /ask endpoint)
 # ---------------------------------------------------------------------------
 # Rolling conversation history per session (resets on alerter restart)
 _hermes_history  = []
@@ -128,7 +129,7 @@ def hermes_ask(user_message: str) -> str:
         else:
             reply = f"Hermes API error: HTTP {r.status_code}"
     except requests.exceptions.Timeout:
-        reply = "Hermes timed out — the agent may still be running. Try again shortly."
+        reply = "Hermes timed out -- the agent may still be running. Try again shortly."
     except Exception as e:
         reply = f"Could not reach Hermes: {e}"
 
@@ -181,7 +182,7 @@ def handle_inbound_messages(offset: int) -> int:
         send_telegram("Hermes is thinking...")
 
         # All messages go straight to the CrewAI agent.
-        # The agent decides which tools to call based on the question —
+        # The agent decides which tools to call based on the question --
         # no keyword routing needed here.
         reply = hermes_ask(text)
         send_telegram(reply)
@@ -218,7 +219,7 @@ def is_market_open() -> bool:
     dow = bt.weekday()   # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
     hour = bt.hour
 
-    if dow == 5:                          # Saturday — always closed
+    if dow == 5:                          # Saturday -- always closed
         return False
     if dow == 4 and hour >= 23:           # Friday from 23:00 broker time
         return False
@@ -247,10 +248,14 @@ def broker_time_str() -> str:
 # MT5 data helpers
 # ---------------------------------------------------------------------------
 def connect_mt5() -> bool:
-    if not mt5.initialize():
-        print(f"[ERROR] MT5 init failed: {mt5.last_error()}")
+    try:
+        if not mt5.initialize():
+            print(f"[ERROR] MT5 init failed: {mt5.last_error()}", flush=True)
+            return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] MT5 exception: {e}", flush=True)
         return False
-    return True
 
 
 def get_account() -> dict:
@@ -355,7 +360,7 @@ def check_friday_close(symbol: str, magic: int) -> list:
     open_seqs = [s for s in seqs.values() if s is not None]
     if not open_seqs:
         return []
-    lines = [f"⚠️ <b>FRIDAY CLOSE IN ~1HR — OPEN SEQUENCES:</b>"]
+    lines = [f"⚠️ <b>FRIDAY CLOSE IN ~1HR -- OPEN SEQUENCES:</b>"]
     for seq in open_seqs:
         lines.append(
             f"  {seq['direction']}: {seq['trade_count']} trades | "
@@ -369,7 +374,7 @@ def build_sunday_summary() -> str:
     """Build a market-open summary for Sunday."""
     account = get_account()
     lines = [
-        f"🟢 <b>MARKET OPEN — RichFX System Status</b>",
+        f"🟢 <b>MARKET OPEN -- RichFX System Status</b>",
         f"📅 {broker_time_str()}",
         f"",
     ]
@@ -392,11 +397,28 @@ def build_sunday_summary() -> str:
 # ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
+def _hermes_poll_loop():
+    """Background thread -- polls Telegram for Hermes queries independently of MT5."""
+    offset = 0
+    print("[Hermes] Inbound poll thread started", flush=True)
+    while True:
+        try:
+            offset = handle_inbound_messages(offset)
+        except Exception as e:
+            print(f"[Hermes] Poll error: {e}")
+        time.sleep(2)  # poll every 2s for responsiveness
+
+
 def main():
-    print("[RichFX Alerter] Starting...")
+    print("[RichFX Alerter] Starting...", flush=True)
+
+    # Start Hermes inbound polling immediately -- does not require MT5
+    import threading
+    hermes_thread = threading.Thread(target=_hermes_poll_loop, daemon=True)
+    hermes_thread.start()
 
     while not connect_mt5():
-        print("[RichFX Alerter] Waiting for MT5... retrying in 30s")
+        print("[RichFX Alerter] Waiting for MT5... retrying in 30s", flush=True)
         time.sleep(30)
 
     # Track state to avoid duplicate alerts
@@ -412,12 +434,9 @@ def main():
         f"Broker time: {broker_time_str()}"
     )
 
-    _update_offset = 0  # Telegram update offset for inbound polling
-
     while True:
         try:
-            # Poll for inbound Hermes queries every loop cycle
-            _update_offset = handle_inbound_messages(_update_offset)
+            # Hermes inbound polling now runs in background thread -- not here
 
             market_open = is_market_open()
 
@@ -468,7 +487,7 @@ def main():
             elif not is_approaching_friday_close():
                 friday_sent = False
 
-            # Send new alerts (deduplicated — don't spam same alert)
+            # Send new alerts (deduplicated -- don't spam same alert)
             for alert in new_alerts:
                 alert_key = alert[:80]    # first 80 chars as dedup key
                 if alert_key not in last_alerts:
@@ -482,7 +501,7 @@ def main():
                 last_alerts.clear()
 
         except KeyboardInterrupt:
-            print("\n[Alerter] Stopped.")
+            print("\n[Alerter] Stopped.", flush=True)
             send_telegram("⚪ <b>RichFX Alerter stopped</b>")
             break
         except Exception as e:

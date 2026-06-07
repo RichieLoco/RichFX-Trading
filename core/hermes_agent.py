@@ -87,17 +87,8 @@ def get_live_portfolio() -> str:
         return f"UNAVAILABLE: {e}"
 
 
-@tool("get_last_analysis")
-def get_last_analysis(symbol: str = "EURUSD") -> str:
-    """
-    Fetch the most recent crew analysis for a trading pair.
-    Returns regime classification, risk status, strategy score,
-    execution recommendation, session quality, drawdown status,
-    correlation warnings, news events, HTF alignment, and volatility.
-    Use this for questions about signal quality, trading recommendations,
-    market regime, or any agent decision on a specific pair.
-    Symbol should be e.g. EURUSD, AUDUSD.
-    """
+def _fetch_analysis(symbol: str) -> str:
+    """Internal helper to fetch analysis for one symbol."""
     try:
         r = requests.get(
             f"{CREW_API_URL}/last-analysis",
@@ -111,7 +102,6 @@ def get_last_analysis(symbol: str = "EURUSD") -> str:
             return f"No analysis cached for {symbol} yet."
 
         lines = [f"Last analysis for {symbol}:"]
-
         if a.get("regime"):
             lines.append(f"Regime: {a['regime'].get('summary','')}")
         if a.get("risk"):
@@ -140,6 +130,25 @@ def get_last_analysis(symbol: str = "EURUSD") -> str:
         return "\n".join(lines)
     except Exception as e:
         return f"UNAVAILABLE: {e}"
+
+
+@tool("get_last_analysis")
+def get_last_analysis(symbol: str = "ALL") -> str:
+    """
+    Fetch the most recent crew analysis for a trading pair.
+    Returns regime, risk, strategy, execution, session, drawdown,
+    correlation warnings, news events, HTF alignment, and volatility.
+    Use for questions about signals, news, regime, or agent decisions.
+    Pass symbol="ALL" (or omit) to fetch both EURUSD and AUDUSD.
+    Pass a specific symbol e.g. "EURUSD" or "AUDUSD" for one pair only.
+    Always use symbol="ALL" for general questions like "any news?" or
+    "how does the market look?" that don't specify a pair.
+    """
+    if symbol == "ALL" or not symbol:
+        eurusd = _fetch_analysis("EURUSD")
+        audusd = _fetch_analysis("AUDUSD")
+        return eurusd + "\n\n" + audusd
+    return _fetch_analysis(symbol)
 
 
 @tool("get_performance")
@@ -357,6 +366,7 @@ def create_hermes_agent() -> Agent:
             "Answer natural language questions about the RichFX trading portfolio. "
             "Use your tools to fetch live data, then give a concise plain-text answer. "
             "Always use the most relevant tool(s) for the question. "
+            "When no symbol is specified, default to EURUSD and AUDUSD as the active pairs. "
             "If a tool returns UNAVAILABLE, say so and answer with what you have. "
             "Never give financial advice or recommend specific trades. "
             "Be concise — this is a Telegram message, not a report. "
@@ -402,6 +412,13 @@ def run_hermes_query(question: str, history: list = None) -> str:
     task_description = (
         f"{history_str}"
         f"User question: {question}\n\n"
+        "IMPORTANT: You MUST call at least one tool before answering. "
+        "Never answer from your own knowledge — always fetch live data first. "
+        "For news questions, call get_last_analysis with symbol=ALL. "
+        "For P&L questions, call get_live_portfolio. "
+        "For signal/QQE questions, call get_signal_state. "
+        "For performance questions, call get_performance. "
+        "For pair rankings, call get_horizon. "
         "Use your tools to fetch the relevant data, then answer concisely. "
         "Plain text only. No markdown. 3-4 sentences unless more detail is requested. "
         "If any tool returns UNAVAILABLE, acknowledge it and answer with what you have."
