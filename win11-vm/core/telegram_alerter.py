@@ -12,7 +12,7 @@ Features:
 - Multi-symbol support
 - Sequence depth alerts
 - Drawdown alerts
-- Friday close reminder with open sequences
+- Friday close reminder with open sequences (fires once per Friday window)
 - Sunday market open summary
 - Telegram delivery via bot
 
@@ -20,7 +20,7 @@ Setup:
 1. Create a Telegram bot via @BotFather -> get token
 2. Get your chat ID via @userinfobot
 3. Set TELEGRAM_TOKEN and TELEGRAM_CHAT_ID below
-4. python telegram_alerter.py
+4. python richfx_alerter.py
 
 Run as scheduled task on VM (starts with Windows, no delay needed):
   schtasks /create /tn RichFX-Alerter /tr "python C:\\path\\telegram_alerter.py"
@@ -216,7 +216,7 @@ def is_market_open() -> bool:
                  reopens ~00:01 Sunday broker time.
     """
     bt = get_broker_time()
-    dow = bt.weekday()   # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
+    dow  = bt.weekday()   # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
     hour = bt.hour
 
     if dow == 5:                          # Saturday -- always closed
@@ -282,9 +282,9 @@ def get_sequences(symbol: str, magic: int) -> dict:
     def summarise(trades, direction):
         if not trades:
             return None
-        total_lots  = sum(t.volume for t in trades)
-        total_cost  = sum(t.volume * t.price_open for t in trades)
-        avg_entry   = total_cost / total_lots
+        total_lots   = sum(t.volume for t in trades)
+        total_cost   = sum(t.volume * t.price_open for t in trades)
+        avg_entry    = total_cost / total_lots
         total_profit = sum(t.profit + t.swap for t in trades)
         return {
             "direction":     direction,
@@ -422,10 +422,10 @@ def main():
         time.sleep(30)
 
     # Track state to avoid duplicate alerts
-    last_alerts     = set()
-    session_high    = 0.0
-    sunday_sent     = False
-    friday_sent     = False
+    last_alerts       = set()
+    session_high      = 0.0
+    sunday_sent       = False
+    friday_sent       = False   # True once the Friday close alert has been sent this week
     last_market_state = None
 
     send_telegram(
@@ -436,8 +436,6 @@ def main():
 
     while True:
         try:
-            # Hermes inbound polling now runs in background thread -- not here
-
             market_open = is_market_open()
 
             # Market state change notification
@@ -445,7 +443,7 @@ def main():
                 if market_open:
                     send_telegram(build_sunday_summary())
                     sunday_sent = True
-                    friday_sent = False
+                    friday_sent = False   # reset for next week
                 else:
                     send_telegram(
                         f"🔴 <b>MARKET CLOSED</b>\n"
@@ -472,32 +470,43 @@ def main():
                 if equity > session_high:
                     session_high = equity
 
-            # Collect all alerts
-            new_alerts = []
-
-            for item in WATCH_LIST:
-                new_alerts += check_sequence_depth(item["symbol"], item["magic"])
-                new_alerts += check_friday_close(item["symbol"], item["magic"])
-
-            new_alerts += check_drawdown(account, session_high)
-
-            # Friday close warning (once per Friday)
-            if is_approaching_friday_close() and not friday_sent:
-                friday_sent = True
-            elif not is_approaching_friday_close():
+            # Reset friday_sent once we leave the warning window so it's
+            # ready to fire again next Friday
+            if not is_approaching_friday_close():
                 friday_sent = False
 
-            # Send new alerts (deduplicated -- don't spam same alert)
+            # Collect standard alerts (sequence depth, drawdown)
+            new_alerts = []
+            for item in WATCH_LIST:
+                new_alerts += check_sequence_depth(item["symbol"], item["magic"])
+            new_alerts += check_drawdown(account, session_high)
+
+            # Friday close alerts -- handled separately with a stable dedup key
+            # per symbol so that floating P&L in the message body doesn't cause
+            # the 80-char key to differ on every poll and bypass deduplication.
+            if not friday_sent:
+                for item in WATCH_LIST:
+                    for alert in check_friday_close(item["symbol"], item["magic"]):
+                        stable_key = f"FRIDAY_CLOSE:{item['symbol']}"
+                        if stable_key not in last_alerts:
+                            send_telegram(alert)
+                            last_alerts.add(stable_key)
+                            print(f"[ALERT] {alert[:100]}")
+                            friday_sent = True
+
+            # Send standard alerts (deduplicated by first 80 chars)
             for alert in new_alerts:
-                alert_key = alert[:80]    # first 80 chars as dedup key
+                alert_key = alert[:80]
                 if alert_key not in last_alerts:
                     send_telegram(alert)
                     last_alerts.add(alert_key)
                     print(f"[ALERT] {alert[:100]}")
 
-            # Clear old alerts every hour so they can re-trigger if still active
+            # Clear old alerts every hour so they can re-trigger if still active.
+            # Skip the clear during the Friday close warning window so the stable
+            # dedup key can't be wiped and allow a re-fire within the same hour.
             bt = get_broker_time()
-            if bt.minute == 0:
+            if bt.minute == 0 and not is_approaching_friday_close():
                 last_alerts.clear()
 
         except KeyboardInterrupt:
@@ -517,3 +526,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

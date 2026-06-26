@@ -431,9 +431,9 @@ _skyWorker.onmessage = () => { updateSkyState(); };
 function drawNightOverlay() {
   const sky = getSkyState();
   let alpha = 0;
-  if      (sky === 'night') alpha = 0.65;
-  else if (sky === 'dawn')  alpha = 0.35;
-  else if (sky === 'dusk')  alpha = 0.10;
+  if      (sky === 'night') alpha = 0.80;
+  else if (sky === 'dawn')  alpha = 0.60;
+  else if (sky === 'dusk')  alpha = 0.60;
   if (alpha > 0) {
     ctx.save();
     ctx.globalAlpha = alpha;
