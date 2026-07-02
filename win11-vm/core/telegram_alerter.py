@@ -526,11 +526,11 @@ def main():
                             print(f"[ALERT] {alert[:100]}")
                             friday_sent = True
 
-            # Clear old alerts every hour so they can re-trigger if still active.
+            # Clear old alerts every 4 hours so they can re-trigger if still active.
             # Skip the clear during the Friday close warning window so the stable
-            # dedup key can't be wiped and allow a re-fire within the same hour.
+            # dedup key can't be wiped and allow a re-fire within the same window.
             bt = get_broker_time()
-            if bt.minute == 0 and not is_approaching_friday_close():
+            if bt.hour % 4 == 0 and bt.minute == 0 and not is_approaching_friday_close():
                 last_alerts.clear()
 
         except KeyboardInterrupt:
