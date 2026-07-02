@@ -20,7 +20,7 @@ Setup:
 1. Create a Telegram bot via @BotFather -> get token
 2. Get your chat ID via @userinfobot
 3. Set TELEGRAM_TOKEN and TELEGRAM_CHAT_ID below
-4. python richfx_alerter.py
+4. python telegram_alerter.py
 
 Run as scheduled task on VM (starts with Windows, no delay needed):
   schtasks /create /tn RichFX-Alerter /tr "python C:\\path\\telegram_alerter.py"
@@ -321,35 +321,56 @@ def get_ohlcv(symbol: str, tf_str: str, bars: int = 300):
 # Alert checks
 # ---------------------------------------------------------------------------
 def check_sequence_depth(symbol: str, magic: int) -> list:
-    """Return alert messages if any sequence is too deep."""
-    alerts = []
+    """
+    Return (stable_key, message) tuples for sequences at/beyond depth threshold.
+
+    The dedup key is deliberately built from (symbol, direction, trade_count)
+    only -- NOT from the message text. The message body embeds live P&L,
+    which changes every poll; hashing/truncating that text (as the old
+    alert[:80] approach did) produces a different key almost every cycle,
+    which defeats dedup entirely (same root cause as the Friday-close bug).
+    A new key is only produced when the sequence actually gets deeper,
+    which is the behaviour we want (escalate on depth change, not on P&L wobble).
+    """
+    results = []
     seqs = get_sequences(symbol, magic)
-    for direction, seq in seqs.items():
+    for seq in seqs.values():
         if seq and seq["trade_count"] >= MAX_SEQUENCE_TRADES:
+            direction = seq["direction"]  # "BUY"/"SELL" -- not the lowercase dict key
             emoji = "🟡" if seq["trade_count"] < 5 else "🔴"
-            alerts.append(
+            stable_key = f"SEQUENCE_DEPTH:{symbol}:{direction}:{seq['trade_count']}"
+            message = (
                 f"{emoji} <b>{symbol} {direction} SEQUENCE DEPTH {seq['trade_count']}</b>\n"
                 f"Lots: {seq['total_lots']} | Avg: {seq['avg_entry']} | "
                 f"P&amp;L: {seq['profit']:+.2f}"
             )
-    return alerts
+            results.append((stable_key, message))
+    return results
 
 
 def check_drawdown(account: dict, session_high: float) -> list:
-    """Return alert if equity drawdown exceeds threshold."""
-    alerts = []
+    """
+    Return (stable_key, message) tuples if equity drawdown exceeds threshold.
+
+    Key is rounded to the nearest whole percentage point rather than derived
+    from the message text, so it doesn't flap every poll as equity wobbles
+    by cents (same fix pattern as check_sequence_depth).
+    """
+    results = []
     if not account or session_high <= 0:
-        return alerts
+        return results
     equity = account["equity"]
     dd_pct = (session_high - equity) / session_high * 100
     if dd_pct >= MAX_EQUITY_DD_PCT:
         emoji = "🔴" if dd_pct >= 5.0 else "🟡"
-        alerts.append(
+        stable_key = f"DRAWDOWN:{int(dd_pct)}"
+        message = (
             f"{emoji} <b>DRAWDOWN ALERT: {dd_pct:.1f}%</b>\n"
             f"Session high: {account['currency']} {session_high:,.2f} | "
             f"Current equity: {equity:,.2f}"
         )
-    return alerts
+        results.append((stable_key, message))
+    return results
 
 
 def check_friday_close(symbol: str, magic: int) -> list:
@@ -475,15 +496,26 @@ def main():
             if not is_approaching_friday_close():
                 friday_sent = False
 
-            # Collect standard alerts (sequence depth, drawdown)
-            new_alerts = []
+            # Sequence depth alerts -- stable (symbol, direction, depth) key,
+            # NOT derived from the message text (which embeds live P&L).
             for item in WATCH_LIST:
-                new_alerts += check_sequence_depth(item["symbol"], item["magic"])
-            new_alerts += check_drawdown(account, session_high)
+                for stable_key, alert in check_sequence_depth(item["symbol"], item["magic"]):
+                    if stable_key not in last_alerts:
+                        send_telegram(alert)
+                        last_alerts.add(stable_key)
+                        print(f"[ALERT] {alert[:100]}")
+
+            # Drawdown alerts -- stable key rounded to whole % rather than
+            # derived from the message text (which embeds live equity/pct).
+            for stable_key, alert in check_drawdown(account, session_high):
+                if stable_key not in last_alerts:
+                    send_telegram(alert)
+                    last_alerts.add(stable_key)
+                    print(f"[ALERT] {alert[:100]}")
 
             # Friday close alerts -- handled separately with a stable dedup key
             # per symbol so that floating P&L in the message body doesn't cause
-            # the 80-char key to differ on every poll and bypass deduplication.
+            # the key to differ on every poll and bypass deduplication.
             if not friday_sent:
                 for item in WATCH_LIST:
                     for alert in check_friday_close(item["symbol"], item["magic"]):
@@ -493,14 +525,6 @@ def main():
                             last_alerts.add(stable_key)
                             print(f"[ALERT] {alert[:100]}")
                             friday_sent = True
-
-            # Send standard alerts (deduplicated by first 80 chars)
-            for alert in new_alerts:
-                alert_key = alert[:80]
-                if alert_key not in last_alerts:
-                    send_telegram(alert)
-                    last_alerts.add(alert_key)
-                    print(f"[ALERT] {alert[:100]}")
 
             # Clear old alerts every hour so they can re-trigger if still active.
             # Skip the clear during the Friday close warning window so the stable
@@ -526,4 +550,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
