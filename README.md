@@ -1,6 +1,6 @@
 # RichFX Trading Floor
 
-An AI-powered algorithmic trading monitoring system built around a 15-agent crew, a live MT5 bridge, a pixel-art trading floor dashboard, and Hermes — a conversational portfolio assistant accessible via Telegram. Agents analyse H4 signals in a sequential chain, advisory agents monitor risk conditions, and a centralised SQLite database accumulates decision history for pattern analysis.
+An AI-powered algorithmic trading monitoring system built around a 16-agent crew, a live MT5 bridge, a pixel-art trading floor dashboard, and Hermes — a conversational portfolio assistant accessible via Telegram. Agents analyse H4 signals in a sequential chain, advisory agents monitor risk conditions, and a centralised SQLite database accumulates decision history for pattern analysis.
 
 > 🔴 **Live demo:** [crew.richielo.co](https://crew.richielo.co) *(Cloudflare Access — request access via the repo)*
 
@@ -15,7 +15,7 @@ All machines live in a **GeeekPi DeskPi RackMate Server T2 Cabinet**, with the t
 | Device                                     | RAM            | Role |
 |--------------------------------------------|----------------|------|
 | Minisforum AI X1 470 Pro, Win 11           | 128GB          | EA development and MQL5 testing |
-| Minisforum MS-S1 MAX, Ubuntu               | 128GB unified  | Ollama LLM inference, FastAPI crew API, dashboard |
+| Minisforum MS-S1 MAX, Ubuntu               | 128GB unified  | Ollama LLM inference, FastAPI crew API, Hermes Agent, Trading floor UI/dashboard |
 | Minisforum AI N5 Pro NAS, Proxmox          | 96GB           | n8n automation, Win11 VM host |
 | Minisforum AI N5 Pro NAS (via LXC), Win 11 | 8GB            | MT5 terminal, bridge, health server, Telegram alerter |
 | Raspberry Pi 4B, Raspberry Pi OS           | 8GB            | Cloudflare tunnel → crew.richielo.co |
