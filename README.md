@@ -54,7 +54,7 @@ All machines connected via **Tailscale** mesh VPN.
 
 ## Agent Roster
 
-The trading floor has 13 agents across two phases:
+The trading floor has 13 agents across two phases.
 
 ### Phase 1 — Core LLM Chain (runs every H4 bar)
 
@@ -67,19 +67,21 @@ The trading floor has 13 agents across two phases:
 
 ### Phase 2 — Advisory Agents
 
-| Agent | Role | Status |
-|-------|------|--------|
-| **Session** | Flags poor liquidity windows (off-peak hours) | ✅ Active |
-| **Drawdown** | Monitors equity drawdown — warns at 2%, halts at 5% | ✅ Active |
-| **Correlation** | Detects correlated USD exposure across pairs | ✅ Active |
-| **News Watch** | ForexFactory calendar — blocks before high-impact events | ✅ Active |
-| **Performance** | Tracks win rate and P&L from closed trade history | ✅ Active |
-| **Backtest Scout** | Compares signals to 500-bar historical pattern database | ✅ Active |
-| **Journalist** | Plain-English post-mortems on completed sequences | ✅ Active |
-| **Meta-Supervisor** | Reviews crew decisions for systematic bias (needs 10+ bars) | ✅ Active |
-| **Horizon** | Cross-pair signal quality analyst — recommends pair expansion | ✅ Active |
-| **Timeframe Analyst** | Checks H8 trend alignment before H4 entries — flags counter-trend DCA | ✅ Active |
-| **Volatility Guard** | ATR-based spike detection — flags abnormal volatility conditions | ✅ Active |
+Most advisory agents are pure-Python checks (no LLM call) wired directly into the `/analyse` endpoint for speed and determinism. **Horizon** is the exception — it's LLM-backed, using `gemma4-e4b-8k` for its faster inference profile, since it runs a full cross-pair scan every H4 bar with separate H4/H1 caches.
+
+| Agent | Role | Model / Type | Status |
+|-------|------|---------------|--------|
+| **Session** | Flags poor liquidity windows (off-peak hours) | Python (rule-based) | ✅ Active |
+| **Drawdown** | Monitors equity drawdown — warns at 2%, halts at 5% | Python (rule-based) | ✅ Active |
+| **Correlation** | Detects correlated USD exposure across pairs | Python (rule-based) | ✅ Active |
+| **News Watch** | ForexFactory calendar — blocks before high-impact events | Python (rule-based) | ✅ Active |
+| **Performance** | Tracks win rate and P&L from closed trade history | Python (rule-based) | ✅ Active |
+| **Backtest Scout** | Compares signals to 500-bar historical pattern database | Python (rule-based) | ✅ Active |
+| **Journalist** | Plain-English post-mortems on completed sequences | LLM (qwen3-14b-8k) | ✅ Active |
+| **Meta-Supervisor** | Reviews crew decisions for systematic bias (needs 10+ bars) | Python (rule-based) | ✅ Active |
+| **Horizon** | Cross-pair signal quality analyst — recommends pair expansion | **LLM (gemma4-e4b-8k)** | ✅ Active |
+| **Timeframe Analyst** | Checks H8 trend alignment before H4 entries — flags counter-trend DCA | Python (`check_timeframe_alignment()`) | ✅ Active |
+| **Volatility Guard** | ATR-based spike detection — flags abnormal volatility conditions | Python (`check_volatility()`) | ✅ Active |
 
 ### Planned Agents
 
@@ -184,8 +186,7 @@ Dashboard (browser) — read-only, never triggers /analyse
     ├── GET /scout           (pattern confidence score)
     ├── GET /journalist      (sequence narratives)
     ├── GET /horizon/last    (pair expansion recommendations, cached — n8n refreshes every H4 bar)
-    ├── GET /live              (live P&L + positions, polls 30s)
-    ├── GET /live              (live P&L + positions, polls 30s)
+    ├── GET /live            (live P&L + positions, polls 30s)
     └── GET /pending-animation (alt gesture queue, polls 3s)
 ```
 
